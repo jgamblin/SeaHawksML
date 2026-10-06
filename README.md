@@ -70,10 +70,19 @@ Site or metrics changes pushed to `main` also republish automatically.
 
 ## Offseason
 
-GitHub disables scheduled workflows after 60 days without repo activity. In late August,
-re-enable Predict and Retrain in the Actions tab (or `gh workflow enable predict.yml` and
-`gh workflow enable retrain.yml`), then run `uv run python -m seahawks_ml.cli retrain`
-(or the Retrain workflow).
+GitHub disables scheduled workflows after 60 days without repo activity. The monthly
+Keepalive workflow re-enables Predict, Retrain and itself through the API, which resets that
+timer without commits, so nothing needs doing over the offseason. If workflows ever do get
+disabled, re-enable them manually in the Actions tab (or `gh workflow enable predict.yml`,
+`gh workflow enable retrain.yml` and `gh workflow enable keepalive.yml`).
+
+In late August, run `uv run python -m seahawks_ml.cli retrain` (or the Retrain workflow).
+
+## Maintenance
+
+- A failed scheduled Predict or Retrain run opens a GitHub issue labelled `workflow-failure`
+  (or comments on the existing open one) with a link to the failing run.
+- Dependabot opens one grouped weekly PR for GitHub Actions updates.
 
 Data: [nflverse](https://github.com/nflverse), weather by [Open-Meteo](https://open-meteo.com/).
 An analytical model, not betting advice.
