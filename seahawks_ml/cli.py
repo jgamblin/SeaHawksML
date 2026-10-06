@@ -250,7 +250,7 @@ def _predict(args, changed: list[bool]) -> None:
     )
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
     from seahawks_ml.pipeline.results import new_results
-    from seahawks_ml.pipeline.season_sim import has_snapshot_for, season_in_progress
+    from seahawks_ml.pipeline.season_sim import SIM_ONLY_HOURS, has_snapshot_for, season_in_progress
     from seahawks_ml.stadiums import load_stadiums
 
     now = _now(args)
@@ -284,10 +284,12 @@ def _predict(args, changed: list[bool]) -> None:
             print(f"no run due for {game['game_id']} (kickoff {game['kickoff_utc']:%Y-%m-%d %H:%M} UTC)")
     logged = {r["game_id"] for r in league_log if r["type"] == "league_prediction"}
     league_ids = due_league_games(games, now, logged)
-    # The season simulation runs on any run that loads data, and at least once per UTC day in season.
+    # The season simulation runs on any run that loads data, and otherwise (nothing else due) is only
+    # attempted at SIM_ONLY_HOURS, once per sim day, so idle hourly runs do not reload data.
     sim_due = season_in_progress(games, now) and not has_snapshot_for(read_history(SEASON_SIM_PATH), now)
     if run_type is None and not league_ids:
-        if sim_due:  # nothing else to do: a failure here (e.g. a data download) must not fail the job
+        if sim_due and now.hour in SIM_ONLY_HOURS:
+            # nothing else to do: a failure here (e.g. a data download) must not fail the job
             print("season simulation due (none logged today)")
             try:
                 if _simulate(now, games):

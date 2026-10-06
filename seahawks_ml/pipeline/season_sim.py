@@ -32,6 +32,7 @@ SIM_KEYS = {
     "p_playoffs", "p_division", "p_top_seed", "record_now", "model_version", "sim_day",
 }
 OPTIONAL_KEYS = {"sim_day"}  # absent from snapshots logged before the field existed
+SIM_ONLY_HOURS = (10, 14, 18, 22)  # UTC hours at which a run with nothing else to do attempts the sim
 SIM_DAY_OFFSET_HOURS = 10  # a sim day starts at 10:00 UTC, after every US night game has ended
 
 
@@ -66,7 +67,10 @@ def _outcomes(games: pl.DataFrame, p_home_by_game: dict[str, float], n_sims: int
     out = np.empty((n_sims, games.height))
     out[:, done] = np.sign(margin[done]) * 0.5 + 0.5
     remaining = games.filter(pl.col("margin").is_null())["game_id"].to_list()
-    p = np.array([p_home_by_game[g] for g in remaining], dtype=float)
+    missing = [g for g in remaining if g not in p_home_by_game]
+    if missing:
+        print(f"season sim: no probability for games {missing}; using 0.5")
+    p = np.array([p_home_by_game.get(g, 0.5) for g in remaining], dtype=float)
     out[:, ~done] = rng.random((n_sims, len(remaining))) < p
     return out
 

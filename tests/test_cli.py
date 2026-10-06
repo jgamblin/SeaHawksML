@@ -219,7 +219,7 @@ def test_predict_nothing_due_loads_nothing(predict_env):
 def test_predict_runs_daily_season_sim_when_nothing_else_due(predict_env):
     from seahawks_ml.pipeline.history import read_history
     env, changed = predict_env, []
-    now = env.kick - timedelta(hours=36)
+    now = (env.kick - timedelta(hours=36)).replace(hour=14)  # a SIM_ONLY_HOURS slot
     cli._predict(_args(now), changed)
     assert changed and len(env.loads) == 1
     assert read_history(env.hist) == [] and read_history(env.league) == []
@@ -230,6 +230,16 @@ def test_predict_runs_daily_season_sim_when_nothing_else_due(predict_env):
     changed = []
     cli._predict(_args(now + timedelta(hours=1)), changed)  # same UTC day: quick exit
     assert not changed and len(env.loads) == 1
+
+
+def test_sim_only_run_waits_for_sim_hours(predict_env):
+    env, changed = predict_env, []
+    base = (env.kick - timedelta(hours=36)).replace(hour=0)
+    for hour in (9, 11, 13):
+        cli._predict(_args(base.replace(hour=hour)), changed)
+    assert not changed and env.loads == [] and not env.sim.exists()
+    cli._predict(_args(base.replace(hour=10)), changed)
+    assert changed and len(env.loads) == 1
 
 
 def test_predict_skips_season_sim_outside_season(predict_env):
@@ -329,7 +339,7 @@ def test_sim_only_run_survives_data_load_failure(predict_env, monkeypatch, capsy
         raise RuntimeError("nflverse down")
 
     monkeypatch.setattr(cli, "_load", boom)
-    cli._predict(_args(env.kick - timedelta(hours=36)), changed)  # must not raise
+    cli._predict(_args((env.kick - timedelta(hours=36)).replace(hour=14)), changed)  # must not raise
     assert not changed and not env.sim.exists()
     assert "nflverse down" in capsys.readouterr().out
 

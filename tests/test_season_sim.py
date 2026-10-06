@@ -111,13 +111,17 @@ def test_certain_remaining_games():
     assert out["wins_mean"] == 1.0 and out["win_dist"] == [{"wins": 1, "prob": 1.0}]
 
 
-def test_non_regular_season_games_ignored_and_missing_prob_raises():
+def test_missing_probability_defaults_to_half_with_warning(capsys):
+    out = _sim([("SEA", "SF", None)], n_sims=4000)
+    assert out["wins_mean"] == pytest.approx(0.5, abs=0.05)
+    assert "g0" in capsys.readouterr().out
+
+
+def test_non_regular_season_games_ignored():
     games = _games([("SEA", "SF", 7), ("SF", "SEA", None)]).with_columns(
         pl.Series("game_type", ["REG", "WC"]))
     out = simulate_season(games, {}, _teams(), 2026, n_sims=10, now=NOW)
     assert out["record_now"] == "1-0-0"
-    with pytest.raises(KeyError):
-        _sim([("SEA", "SF", None)])
 
 
 def test_unknown_team_raises():
