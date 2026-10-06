@@ -439,6 +439,7 @@
   <section class="card rise d4" aria-labelledby="league-h">
     <p class="eyebrow">Live this season</p>
     {% set lg = data.league %}
+    {% macro num(v, spec, mult=1) %}{% if v is none or (v - v) != 0 %}&mdash;{% else %}{{ spec|format(v * mult) }}{% endif %}{% endmacro %}
     <h2 id="league-h">Every NFL game{% if lg %}, {{ lg.season }}{% endif %}</h2>
     <p class="sub">Predictions are logged ~1 day before kickoff and never edited. Lower log-loss is better; a coin flip scores 0.693.</p>
     {% if lg and lg.n %}
@@ -450,19 +451,19 @@
         {% if m %}
         <tr class="{{ 'is-model' if key == 'model' else '' }}">
           <td class="method"><b>{{ label }}</b>{% if kind %} <span class="tag">{{ kind }}</span>{% endif %}</td>
-          <td class="r"><b class="pick">{{ "%.3f"|format(m.log_loss) }}</b></td>
-          <td class="r">{{ "%.3f"|format(m.brier) }}</td>
-          <td class="r">{{ "%.1f"|format(m.accuracy * 100) }}%</td>
+          <td class="r"><b class="pick">{{ num(m.log_loss, "%.3f") }}</b></td>
+          <td class="r">{{ num(m.brier, "%.3f") }}</td>
+          <td class="r">{% if m.accuracy is none or (m.accuracy - m.accuracy) != 0 %}&mdash;{% else %}{{ "%.1f"|format(m.accuracy * 100) }}%{% endif %}</td>
           <td class="r">{{ m.n }}</td>
         </tr>
         {% endif %}
       {% endfor %}
       </tbody>
     </table></div>
-    <p class="league-note">Compared on the {{ lg.n }} completed games that have a Vegas line{% if lg.n_all != lg.n %} ({{ lg.n_all }} games completed in all){% endif %}. Ties count as half a win.</p>
+    <p class="league-note">{% if lg.vegas %}Compared on the {{ lg.n }} completed game{{ '' if lg.n == 1 else 's' }} that have a Vegas line{% else %}Based on {{ lg.n }} completed game{{ '' if lg.n == 1 else 's' }}; no Vegas lines logged yet{% endif %}{% if lg.n_all != lg.n %} ({{ lg.n_all }} games completed in all){% endif %}. Ties count as half a win.</p>
     <h3 class="eyebrow" style="margin-bottom:4px">Cumulative log-loss by week</h3>
-    <div class="legend"><span><i></i>Model</span><span><i class="dash"></i>Vegas</span><span><i class="mut"></i>Elo</span></div>
-    <div class="chart"><canvas id="leaguechart" role="img" aria-label="Cumulative log-loss by week: model, Vegas and Elo"></canvas></div>
+    <div class="legend"><span><i></i>Model</span>{% if lg.vegas %}<span><i class="dash"></i>Vegas</span>{% endif %}<span><i class="mut"></i>Elo</span></div>
+    <div class="chart"><canvas id="leaguechart" role="img" aria-label="Cumulative log-loss by week: model, {% if lg.vegas %}Vegas and {% endif %}Elo"></canvas></div>
     {% else %}
     <div class="empty"><strong>No completed games yet</strong>The scorecard appears once logged games have final scores.</div>
     {% endif %}
@@ -630,7 +631,7 @@ const DATA = {{ data_json|safe }};
         type: "line",
         data: { labels: bw.weeks.map(w => "Wk " + w), datasets: [
           set("Model", "model", green, { borderWidth: 3, pointRadius: 4 }),
-          set("Vegas", "vegas", wolf, { borderDash: [6, 5] }),
+          ...(DATA.league.vegas ? [set("Vegas", "vegas", wolf, { borderDash: [6, 5] })] : []),
           set("Elo", "elo", muted, { borderWidth: 1.5, pointRadius: 2 }),
         ] },
         options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },

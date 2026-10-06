@@ -149,3 +149,34 @@ def test_build_site_reads_league_path_at_call_time(tmp_path, monkeypatch):
 def test_site_data_has_no_model_files_by_default(tmp_path):
     data = build_site_data([], datetime(2026, 10, 12, tzinfo=UTC))
     assert data["metrics"] is None and data["backtest"] is None and data["holdout"] is None
+
+
+def _render_league(tmp_path, log):
+    from seahawks_ml.pipeline.league import validate_league
+    lpath = tmp_path / "lg.jsonl"
+    for r in log:
+        append_record(r, lpath, validate_league)
+    return build_site(datetime(2026, 10, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s", league_path=lpath).read_text()
+
+
+def test_league_card_wording_without_vegas_lines(tmp_path):
+    from tests.test_league import _pred as lp
+    from tests.test_league import _res
+    html = _render_league(tmp_path, [lp("g0", 1, .8, None, .6), _res("g0", 7)])
+    card = html[html.index('id="league-h"'):html.index('id="leaguechart"')]
+    assert "have a Vegas line" not in card and "Vegas spread" not in card
+    assert "1 completed game" in card
+
+
+def test_league_card_wording_with_vegas_lines(tmp_path):
+    html = _render_league(tmp_path, _league_log())
+    assert "have a Vegas line" in html
+
+
+def test_league_card_shows_dash_for_missing_metrics(tmp_path):
+    from tests.test_league import _pred as lp
+    from tests.test_league import _res
+    html = _render_league(tmp_path, [lp("g0", 1, .6, .5, .5), _res("g0", 0)])  # all ties: accuracy undefined
+    card = html[html.index('id="league-h"'):html.index('id="leaguechart"')]
+    assert "nan" not in card.lower() and "None" not in card and "&mdash;" in card
