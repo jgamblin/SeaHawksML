@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seahawks Model</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#f7f8f9; --card:#fff; --ink:#1b2430; --muted:#5b6673; --line:#dfe3e8;
+          --navy:#002244; --green:#4c8a1e; --grey:#a5acaf; --bad:#b3261e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f141a; --card:#171e26; --ink:#e7ecf1; --muted:#9aa6b2; --line:#2a3440;
+            --navy:#8fb3d9; --green:#7fc04a; --grey:#7d868c; --bad:#f2827a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; } h2 { font-size:1.15rem; margin:0 0 12px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-top:16px; }
+  .hero { display:flex; flex-wrap:wrap; gap:24px; align-items:baseline; }
+  .big { font-size:3rem; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
+  .stat { min-width:140px; } .stat .label { color:var(--muted); font-size:.85rem; }
+  .stat .value { font-size:1.3rem; font-weight:600; font-variant-numeric:tabular-nums; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:.92rem; }
+  th { color:var(--muted); font-weight:500; }
+  .pos { color:var(--green); } .neg { color:var(--bad); }
+  .chart { position:relative; height:260px; }
+  .table-wrap { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Seahawks Game Model</h1>
+  <div class="muted">Last updated {{ data.generated_at[:16].replace("T", " ") }} UTC
+    {% if data.metrics %}· model {{ data.metrics.model_version }}{% endif %}</div>
+
+  {% set g = data.next_game %}
+  <section class="card">
+    {% if g %}
+      {% set p = g.latest %}
+      <h2>Next: {{ "vs" if p.seahawks_home else "at" }} {{ p.opponent }}</h2>
+      <div class="muted">Kickoff {{ p.kickoff_utc[:16].replace("T", " ") }} UTC · latest run: {{ p.run_type }}</div>
+      <div class="hero">
+        <div><div class="big">{{ "%.0f"|format(p.p_seahawks * 100) }}%</div><div class="muted">Seahawks win probability</div></div>
+        <div class="stat"><div class="label">Predicted margin</div>
+          <div class="value">{{ "%+.1f"|format(p.margin_seahawks) }}</div>
+          <div class="muted">80% range {{ "%+.0f"|format(p.margin_lo) }} to {{ "%+.0f"|format(p.margin_hi) }}</div></div>
+        <div class="stat"><div class="label">Vegas-implied (benchmark)</div>
+          <div class="value">{% if p.p_vegas_seahawks is not none %}{{ "%.0f"|format(p.p_vegas_seahawks * 100) }}%{% else %}n/a{% endif %}</div></div>
+        <div class="stat"><div class="label">Weather ({{ p.weather.source }})</div>
+          <div class="value">{{ "%.0f"|format(p.weather.temp_f) }}°F</div>
+          <div class="muted">wind {{ "%.0f"|format(p.weather.wind_mph) }} mph · precip {{ p.weather.precip_in }} in</div></div>
+      </div>
+    {% else %}
+      <h2>No upcoming prediction yet</h2>
+      <div class="muted">The next run happens about four days before kickoff.</div>
+    {% endif %}
+  </section>
+
+  {% if g %}
+  <section class="card">
+    <h2>This week's trajectory</h2>
+    <div class="chart"><canvas id="trajectory"></canvas></div>
+  </section>
+  <section class="card">
+    <h2>Why: biggest factors (points for Seattle)</h2>
+    <table><tbody>
+      {% for f in g.latest.top_factors %}
+      <tr><td>{{ f.label }}</td><td class="{{ 'pos' if f.points >= 0 else 'neg' }}">{{ "%+.1f"|format(f.points) }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2>Season log</h2>
+    <div class="muted">Scored on the last prediction before kickoff · record {{ data.record.correct }}/{{ data.record.games }}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Kickoff</th><th>Opponent</th><th>Runs (win %)</th><th>Final pick</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for game in data.season_log %}
+        <tr>
+          <td>{{ game.kickoff_utc[:10] }}</td>
+          <td>{{ "vs" if game.seahawks_home else "at" }} {{ game.opponent }}</td>
+          <td>{% for t in game.trajectory %}{{ "%.0f"|format(t.p_seahawks * 100) }}{% if not loop.last %} → {% endif %}{% endfor %}</td>
+          <td>{{ "%.0f"|format(game.latest.p_seahawks * 100) }}%</td>
+          <td>{% if game.result %}{{ "W" if game.result.margin_seahawks > 0 else ("L" if game.result.margin_seahawks < 0 else "T") }}
+              {{ game.result.seahawks_score }}-{{ game.result.opponent_score }}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  {% if data.backtest %}
+  <section class="card">
+    <h2>Model report (walk-forward backtest {{ data.backtest.seasons[0] }}–{{ data.backtest.seasons[-1] }})</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Method</th><th>Log-loss</th><th>90% CI</th><th>Brier</th><th>Accuracy</th></tr></thead>
+      <tbody>
+      {% for name, label in [("model", "This model"), ("elo", "Elo only"), ("home", "Home team always"), ("vegas", "Vegas spread (benchmark)")] %}
+        {% set m = data.backtest.score[name] %}
+        <tr><td>{{ label }}</td><td>{{ "%.4f"|format(m.log_loss) }}</td>
+            <td>{{ "%.4f"|format(m.log_loss_ci90[0]) }}–{{ "%.4f"|format(m.log_loss_ci90[1]) }}</td>
+            <td>{{ "%.4f"|format(m.brier) }}</td><td>{{ "%.1f"|format(m.accuracy * 100) }}%</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% if data.holdout %}
+    <p class="muted">Locked holdout ({{ data.holdout.seasons|join(", ") }}): log-loss {{ "%.4f"|format(data.holdout.score.model.log_loss) }}
+      vs Vegas {{ "%.4f"|format(data.holdout.score.vegas.log_loss) }}.</p>
+    {% endif %}
+    <div class="chart"><canvas id="calibration"></canvas></div>
+  </section>
+  {% endif %}
+  <p class="muted">Data: <a href="https://github.com/nflverse">nflverse</a> ·
+    weather by <a href="https://open-meteo.com/">Open-Meteo</a>. An analytical model, not betting advice.</p>
+</main>
+<script>
+const DATA = {{ data_json|safe }};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+Chart.defaults.color = css("--muted");
+Chart.defaults.borderColor = css("--line");
+if (DATA.next_game) {
+  const t = DATA.next_game.trajectory;
+  new Chart(document.getElementById("trajectory"), {
+    type: "line",
+    data: { labels: t.map(r => r.run_type),
+      datasets: [
+        { label: "Model", data: t.map(r => r.p_seahawks * 100), borderColor: css("--navy"), backgroundColor: css("--navy"), tension: 0 },
+        { label: "Vegas (benchmark)", data: t.map(r => r.p_vegas_seahawks == null ? null : r.p_vegas_seahawks * 100),
+          borderColor: css("--grey"), backgroundColor: css("--grey"), borderDash: [4, 4], tension: 0 },
+      ] },
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "Seahawks win %" } } } },
+  });
+}
+if (DATA.backtest) {
+  const cal = DATA.backtest.score.model.calibration;
+  new Chart(document.getElementById("calibration"), {
+    type: "scatter",
+    data: { datasets: [
+      { label: "Model (by predicted-probability bin)", data: cal.map(b => ({ x: b.mean_pred * 100, y: b.mean_outcome * 100 })),
+        backgroundColor: css("--navy"), pointRadius: 5 },
+      { label: "Perfect calibration", type: "line", data: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+        borderColor: css("--grey"), borderDash: [4, 4], pointRadius: 0 },
+    ] },
+    options: { maintainAspectRatio: false,
+      scales: { x: { min: 0, max: 100, title: { display: true, text: "Predicted home win %" } },
+                y: { min: 0, max: 100, title: { display: true, text: "Actual home win %" } } } },
+  });
+}
+</script>
+</body>
+</html>
