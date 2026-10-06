@@ -137,7 +137,7 @@ def cmd_predict(args) -> None:
     from seahawks_ml.ingest import nflverse
     from seahawks_ml.ingest.weather import forecast_for_games
     from seahawks_ml.models.store import METRICS_PATH, load_config, load_model
-    from seahawks_ml.pipeline.gate import due_run, next_game, previous_kickoff
+    from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
     from seahawks_ml.pipeline.history import append_record, read_history, runs_done
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction
     from seahawks_ml.pipeline.results import new_results
@@ -168,6 +168,9 @@ def cmd_predict(args) -> None:
     print(f"{run_type} run for {game['game_id']}")
     config = load_config()
     stadiums, raw = _load(now)
+    if not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
+        print("previous game data not in yet; will retry next hour")
+        return
     target = raw.games.filter(pl.col("game_id") == game["game_id"])
     if game["kickoff_utc"] - now <= FORECAST_HORIZON:
         forecast = forecast_for_games(target, stadiums)

@@ -39,3 +39,14 @@ def due_run(now: datetime, kickoff: datetime, done: set[str], prev_kickoff: date
         if kickoff - opens <= now < kickoff - closes:
             return None if run_type in done else run_type
     return None
+
+
+def previous_game_ready(games: pl.DataFrame, team_epa: pl.DataFrame, team: str, now: datetime) -> bool:
+    """True when the team's previous game has both its final margin and its team EPA rows."""
+    past = team_schedule(games, team).filter(pl.col("kickoff_utc") < now)
+    if not past.height:
+        return True
+    prev = past.row(-1, named=True)
+    if prev["margin"] is None:
+        return False
+    return team_epa.filter((pl.col("game_id") == prev["game_id"]) & (pl.col("team") == team)).height > 0

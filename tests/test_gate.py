@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import polars as pl
 import pytest
 
-from seahawks_ml.pipeline.gate import due_run, next_game, previous_kickoff
+from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
 
 SUN_1PM_ET = datetime(2026, 10, 11, 17, 0, tzinfo=UTC)
 THU_820_ET = datetime(2026, 10, 16, 0, 15, tzinfo=UTC)
@@ -51,3 +51,25 @@ def test_next_and_previous_game():
     assert next_game(games, "SEA", now)["game_id"] == "b"
     assert previous_kickoff(games, "SEA", now) == SUN_1PM_ET - timedelta(days=7)
     assert next_game(games, "SEA", SUN_1PM_ET + timedelta(days=8)) is None
+
+
+def _ready_frames(margin, with_epa=True):
+    games = pl.DataFrame({
+        "game_id": ["a", "b"],
+        "home_team": ["SEA", "SF"],
+        "away_team": ["LA", "SEA"],
+        "kickoff_utc": [SUN_1PM_ET - timedelta(days=7), SUN_1PM_ET],
+        "margin": [margin, None],
+    }, schema_overrides={"kickoff_utc": pl.Datetime("us", "UTC"), "margin": pl.Int64})
+    epa = pl.DataFrame({"game_id": ["a"] if with_epa else [], "team": ["SEA"] if with_epa else []},
+                       schema={"game_id": pl.Utf8, "team": pl.Utf8})
+    return games, epa
+
+
+def test_previous_game_ready():
+    now = SUN_1PM_ET - timedelta(days=1)
+    assert previous_game_ready(*_ready_frames(3), "SEA", now)
+    assert not previous_game_ready(*_ready_frames(None), "SEA", now)
+    assert not previous_game_ready(*_ready_frames(3, with_epa=False), "SEA", now)
+    # no previous game (season opener): nothing to wait for
+    assert previous_game_ready(*_ready_frames(None), "SEA", SUN_1PM_ET - timedelta(days=30))
