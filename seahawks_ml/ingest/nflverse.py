@@ -61,7 +61,6 @@ A fixed constant (not the current season's mean) so that neutralization never us
 information from games after a given kickoff and past ratings don't shift weekly.
 Derive it by averaging `epa` over pass/run plays with `fumble == 1` (non-null epa, no
 two-point tries, as in `aggregate_team_epa`) across the 2012-2023 play-by-play.
-The value here is provisional until recomputed from the real data.
 """
 
 
