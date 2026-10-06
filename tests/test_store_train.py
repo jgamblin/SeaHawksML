@@ -5,7 +5,14 @@ import pytest
 
 from seahawks_ml.features.ratings import RatingParams
 from seahawks_ml.models.pipeline import ModelConfig
-from seahawks_ml.models.store import ProjectConfig, check_model_matches, load_config, load_model, save_config, save_model
+from seahawks_ml.models.store import (
+    ProjectConfig,
+    check_model_matches,
+    load_config,
+    load_model,
+    save_config,
+    save_model,
+)
 from seahawks_ml.models.train import completed_seasons, train_production
 from tests.synthetic import make_feature_frame
 
