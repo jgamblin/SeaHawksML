@@ -24,6 +24,24 @@ def test_config_round_trip(tmp_path):
     assert loaded == cfg and loaded.fingerprint() == cfg.fingerprint()
 
 
+def test_config_round_trip_with_rating_toggles(tmp_path):
+    cfg = ProjectConfig(rating=RatingParams(0.6, 6.0, 2.0, opponent_adjust=True, extra_stats=False))
+    save_config(cfg, tmp_path / "c.json")
+    assert load_config(tmp_path / "c.json") == cfg
+
+
+def test_old_config_without_rating_toggles_loads_defaults(tmp_path):
+    import json
+
+    d = ProjectConfig().to_dict()
+    d["rating"] = {"prior_regression": 0.6, "prior_games": 6.0, "prior_games_new_coach": 2.0}
+    (tmp_path / "c.json").write_text(json.dumps(d))
+    loaded = load_config(tmp_path / "c.json")
+    assert loaded.rating == RatingParams(0.6, 6.0, 2.0)
+    assert loaded.rating.opponent_adjust is RatingParams().opponent_adjust
+    assert loaded.rating.extra_stats is RatingParams().extra_stats
+
+
 def test_completed_seasons_skips_unplayed():
     frame = make_feature_frame(seasons=range(2009, 2013)).with_columns(
         pl.when(pl.col("season") == 2012).then(None).otherwise(pl.col("margin")).alias("margin"))

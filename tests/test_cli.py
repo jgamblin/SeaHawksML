@@ -145,3 +145,37 @@ def test_predict_records_league_results(predict_env, monkeypatch):
     cli._predict(_args(env.kick + timedelta(days=1)), changed)
     types = [r["type"] for r in read_history(env.league)]
     assert types.count("league_result") == 2 and changed
+
+
+def test_rating_grid_covers_toggles():
+    from seahawks_ml.features.ratings import RatingParams
+
+    grid = [RatingParams(*g) for g in cli.RATING_GRID]
+    assert len(grid) == len(set(grid)) == 7
+    for adj in (False, True):
+        for extra in (False, True):
+            assert RatingParams(0.6, 6.0, 2.0, adj, extra) in grid
+    for reg, k, k_new in [(0.5, 4.0, 2.0), (0.7, 6.0, 3.0), (0.6, 4.0, 2.0)]:
+        assert RatingParams(reg, k, k_new, True, True) in grid
+
+
+def test_backtest_stage0_picks_best_rating_params(monkeypatch, tmp_path, capsys):
+    import seahawks_ml.models.backtest as bt
+    import seahawks_ml.models.store as store
+    from seahawks_ml.features.ratings import RatingParams
+
+    winner = RatingParams(0.6, 4.0, 2.0, True, True)
+    written = {}
+    monkeypatch.setattr(cli, "_load", lambda now: (None, None))
+    monkeypatch.setattr(cli, "_build", lambda raw, stadiums, config: config)
+    monkeypatch.setattr(bt, "walk_forward_log_loss",
+                        lambda cfg, model, seasons: 0.6 if cfg.rating == winner else 0.7)
+    monkeypatch.setattr(bt, "tune", lambda frame, seasons: (frame.model, []))
+    monkeypatch.setattr(bt, "walk_forward", lambda frame, model, seasons: None)
+    monkeypatch.setattr(bt, "score", lambda preds: {})
+    monkeypatch.setattr(bt, "write_json", lambda path, d: written.update(d))
+    monkeypatch.setattr(store, "save_config", lambda cfg: written.update(saved=cfg))
+    cli.cmd_backtest(Namespace(now=None, tune_features=True))
+    assert written["saved"].rating == winner
+    assert any(t["rating"] == {**winner.__dict__} and t["log_loss"] == 0.6 for t in written["feature_trials"])
+    assert f"best rating: {winner}" in capsys.readouterr().out

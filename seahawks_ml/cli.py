@@ -7,7 +7,7 @@ CI (in season):              retrain, predict, build-site
 import argparse
 import json
 import os
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 
 import polars as pl
@@ -21,7 +21,12 @@ from seahawks_ml.config import (
     TEAM,
 )
 
-RATING_GRID = [(0.5, 4.0, 2.0), (0.6, 4.0, 2.0), (0.7, 6.0, 3.0), (0.6, 6.0, 2.0)]
+# RatingParams fields: (prior_regression, prior_games, prior_games_new_coach, opponent_adjust, extra_stats).
+# The previous best shrinkage with every toggle combination, plus other shrinkage with both on.
+RATING_GRID = [
+    *[(0.6, 6.0, 2.0, adj, extra) for adj in (False, True) for extra in (False, True)],
+    (0.5, 4.0, 2.0, True, True), (0.7, 6.0, 3.0, True, True), (0.6, 4.0, 2.0, True, True),
+]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
 FORECAST_HORIZON = timedelta(days=16)
 
@@ -82,21 +87,25 @@ def cmd_backtest(args) -> None:
     stadiums, raw = _load(_now(args))
     seasons = list(BACKTEST_SEASONS)
     config = ProjectConfig()
+    feature_trials = []
     if args.tune_features:
-        print("stage 0a: team-rating shrinkage")
+        print("stage 0a: team ratings (shrinkage, opponent adjustment, extra stats)")
         best = None
-        for reg, k, k_new in RATING_GRID:
-            cand = replace(config, rating=RatingParams(reg, k, k_new))
+        for fields in RATING_GRID:
+            cand = replace(config, rating=RatingParams(*fields))
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.rating}")
+            feature_trials.append({"stage": "rating", "rating": asdict(cand.rating), "log_loss": ll})
             if best is None or ll < best[1]:
                 best = (cand, ll)
         config = best[0]
+        print(f"  best rating: {config.rating}")
         print("stage 0b: QB prior strength")
         for prior in QB_PRIOR_GRID:
             cand = replace(config, qb=QBParams(prior_dropbacks=prior))
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.qb}")
+            feature_trials.append({"stage": "qb", "qb": asdict(cand.qb), "log_loss": ll})
             if ll < best[1]:
                 best = (cand, ll)
         config = best[0]
@@ -106,7 +115,8 @@ def cmd_backtest(args) -> None:
     save_config(config)
     preds = walk_forward(frame, model_config, seasons)
     write_json(BACKTEST_PATH, {"seasons": seasons, "config": config.to_dict(),
-                               "score": score(preds), "trials": trials})
+                               "score": score(preds), "trials": trials,
+                               "feature_trials": feature_trials})
     print(f"locked config {config.fingerprint()} -> models/config.json; report -> {BACKTEST_PATH}")
 
 
