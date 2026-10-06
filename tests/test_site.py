@@ -180,3 +180,55 @@ def test_league_card_shows_dash_for_missing_metrics(tmp_path):
     html = _render_league(tmp_path, [lp("g0", 1, .6, .5, .5), _res("g0", 0)])  # all ties: accuracy undefined
     card = html[html.index('id="league-h"'):html.index('id="leaguechart"')]
     assert "nan" not in card.lower() and "None" not in card and "&mdash;" in card
+
+
+def _sim_log():
+    from tests.test_cli import _sim_snapshot
+    old = {**_sim_snapshot(datetime(2025, 12, 1, tzinfo=UTC)), "season": 2025, "p_playoffs": 0.9}
+    a = {**_sim_snapshot(datetime(2026, 10, 5, 0, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.41}
+    b = {**_sim_snapshot(datetime(2026, 10, 6, 0, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.47,
+         "wins_mean": 9.4, "wins_p10": 7.0, "wins_p90": 12.0, "p_division": 0.18, "p_top_seed": 0.004,
+         "record_now": "3-2-0", "win_dist": [{"wins": w, "prob": p} for w, p in [(7, .2), (9, .5), (12, .3)]]}
+    return [old, b, a]
+
+
+def test_site_data_season_sim(tmp_path):
+    data = build_site_data([], datetime(2026, 10, 6, 12, tzinfo=UTC), sim_log=_sim_log())
+    sim = data["season_sim"]
+    assert sim["latest"]["as_of"].startswith("2026-10-06") and sim["latest"]["wins_mean"] == 9.4
+    assert sim["series"] == [{"date": "2026-10-05", "p_playoffs": 0.41}, {"date": "2026-10-06", "p_playoffs": 0.47}]
+    assert build_site_data([], datetime(2026, 10, 6, tzinfo=UTC))["season_sim"] is None
+
+
+def _render_sim(tmp_path, log):
+    from seahawks_ml.pipeline.season_sim import validate_sim
+    path = tmp_path / "sim.jsonl"
+    for r in log:
+        append_record(r, path, validate_sim)
+    return build_site(datetime(2026, 10, 6, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s", sim_path=path).read_text()
+
+
+def test_build_site_renders_season_outlook(tmp_path):
+    html = _render_sim(tmp_path, _sim_log())
+    card = html[html.index('id="outlook-h"'):html.index('id="traj-h"')]
+    assert "Season outlook" in html and 'id="winsdist"' in card and 'id="playoffchart"' in card
+    assert "47%" in card and "18%" in card and "&lt;1%" in card and "9.4" in card and "7–12" in card
+    assert "3-2" in card and "Simplified tiebreakers" in card
+
+
+def test_build_site_season_outlook_empty_state(tmp_path):
+    html = _render_sim(tmp_path, [])
+    assert "Season outlook" in html and "No simulation yet" in html and 'id="winsdist"' not in html
+
+
+def test_build_site_reads_sim_path_at_call_time(tmp_path, monkeypatch):
+    from seahawks_ml.pipeline.season_sim import validate_sim
+    from seahawks_ml.site import build
+    path = tmp_path / "sim.jsonl"
+    for r in _sim_log():
+        append_record(r, path, validate_sim)
+    monkeypatch.setattr(build, "SEASON_SIM_PATH", path)
+    html = build_site(datetime(2026, 10, 6, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s").read_text()
+    assert 'id="winsdist"' in html

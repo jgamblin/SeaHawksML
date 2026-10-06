@@ -7,6 +7,7 @@ def _isolate_site_inputs(tmp_path_factory, monkeypatch):
     from seahawks_ml.site import build
 
     missing = tmp_path_factory.mktemp("no_such_inputs")
-    for name, fname in [("LEAGUE_PATH", "league.jsonl"), ("METRICS_PATH", "metrics.json"),
+    for name, fname in [("LEAGUE_PATH", "league.jsonl"), ("SEASON_SIM_PATH", "season_sim.jsonl"),
+                        ("METRICS_PATH", "metrics.json"),
                         ("BACKTEST_PATH", "backtest.json"), ("HOLDOUT_PATH", "holdout.json")]:
         monkeypatch.setattr(build, name, missing / fname)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from seahawks_ml.config import LEAGUE_PATH, PREDICTIONS_PATH, SITE_DIR
+from seahawks_ml.config import LEAGUE_PATH, PREDICTIONS_PATH, SEASON_SIM_PATH, SITE_DIR
 from seahawks_ml.models.store import BACKTEST_PATH, HOLDOUT_PATH, METRICS_PATH
 from seahawks_ml.pipeline.history import read_history, scored_predictions
 from seahawks_ml.pipeline.league import league_scorecard
@@ -24,7 +24,18 @@ def _read_json(path: Path) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
-def build_site_data(history: list[dict], now: datetime, league_log: list[dict] | None = None) -> dict:
+def season_outlook(sim_log: list[dict]) -> dict | None:
+    """Latest season-simulation snapshot plus the P(playoffs) series for that season."""
+    if not sim_log:
+        return None
+    season = max(r["season"] for r in sim_log)
+    snaps = sorted((r for r in sim_log if r["season"] == season), key=lambda r: _ts(r["as_of"]))
+    return {"latest": snaps[-1],
+            "series": [{"date": r["as_of"][:10], "p_playoffs": r["p_playoffs"]} for r in snaps]}
+
+
+def build_site_data(history: list[dict], now: datetime, league_log: list[dict] | None = None,
+                    sim_log: list[dict] | None = None) -> dict:
     predictions = [r for r in history if r["type"] == "prediction"]
     results = {r["game_id"]: r for r in history if r["type"] == "result"}
     games: dict[str, dict] = {}
@@ -64,14 +75,16 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
         "backtest": backtest,
         "holdout": _read_json(HOLDOUT_PATH),
         "league": league,
+        "season_sim": season_outlook(sim_log or []),
     }
 
 
 def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PATH,
-               out_dir: Path = SITE_DIR, league_path: Path | None = None) -> Path:
+               out_dir: Path = SITE_DIR, league_path: Path | None = None, sim_path: Path | None = None) -> Path:
     now = now or datetime.now(UTC)
     league_path = LEAGUE_PATH if league_path is None else league_path  # looked up at call time
-    data = build_site_data(read_history(history_path), now, read_history(league_path))
+    sim_path = SEASON_SIM_PATH if sim_path is None else sim_path
+    data = build_site_data(read_history(history_path), now, read_history(league_path), read_history(sim_path))
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))

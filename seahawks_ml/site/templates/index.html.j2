@@ -222,6 +222,12 @@
   .legend i.mut { background:var(--muted); opacity:.7; }
   .league-note { font-size:.85rem; color:var(--muted); margin:12px 0 16px; }
 
+  /* season outlook */
+  .outlook-kpis { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin:0 0 18px; }
+  @media (min-width:760px) { .outlook-kpis { grid-template-columns:repeat(4, minmax(0,1fr)); } }
+  .outlook-kpis .kpi .v { font-size:2.3rem; }
+  .outlook-kpis .kpi.lead { box-shadow:inset 0 3px 0 var(--action); }
+
   /* model report */
   .method b { font-weight:600; }
   tr.is-model td:first-child { box-shadow:inset 3px 0 0 var(--action); }
@@ -345,6 +351,46 @@
       <h1 id="hero-title">No upcoming prediction yet</h1>
       <p>The next run happens about four days before kickoff, then again after the final injury report and on gameday.</p>
     </div>
+    {% endif %}
+  </section>
+
+  {# ================= SEASON OUTLOOK ================= #}
+  {% set ss = data.season_sim %}
+  {% macro prob(v) %}{% if v < 0.005 %}&lt;1%{% elif v > 0.995 %}&gt;99%{% else %}{{ "%.0f"|format(v * 100) }}%{% endif %}{% endmacro %}
+  {% macro wins(v) %}{{ v|int if v == v|int else "%.1f"|format(v) }}{% endmacro %}
+  <section class="card rise d2" aria-labelledby="outlook-h">
+    <p class="eyebrow">Season outlook</p>
+    {% if ss %}
+    {% set s = ss.latest %}
+    {% set rec = s.record_now.split("-") %}
+    <h2 id="outlook-h">{{ s.season }} projection</h2>
+    <p class="sub">Seattle is <b class="num">{{ rec[0] }}-{{ rec[1] }}{% if rec[2] != "0" %}-{{ rec[2] }}{% endif %}</b>. The rest of the regular season, simulated {{ "{:,}".format(s.n_sims) }} times as of <span data-utc="{{ s.as_of }}" data-fmt="date">{{ s.as_of[:10] }}</span>.</p>
+    <div class="outlook-kpis">
+      <div class="kpi lead">
+        <div class="k">Projected wins</div>
+        <div class="v">{{ "%.1f"|format(s.wins_mean) }}</div>
+        <div class="n">80% range {{ wins(s.wins_p10) }}–{{ wins(s.wins_p90) }}</div>
+      </div>
+      <div class="kpi"><div class="k">Make playoffs</div><div class="v">{{ prob(s.p_playoffs) }}</div><div class="n">One of 7 seeds</div></div>
+      <div class="kpi"><div class="k">Win division</div><div class="v">{{ prob(s.p_division) }}</div><div class="n">Seeds 1–4</div></div>
+      <div class="kpi"><div class="k">No. 1 seed</div><div class="v">{{ prob(s.p_top_seed) }}</div><div class="n">First-round bye</div></div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <h3 class="eyebrow" style="margin-bottom:4px">Final win total</h3>
+        <p class="sub" style="margin-bottom:8px">Share of simulations ending on each win total (a tie counts half; .5 rounds up). Green bars are inside the 80% range.</p>
+        <div class="chart"><canvas id="winsdist" role="img" aria-label="Distribution of Seattle's final win total"></canvas></div>
+      </div>
+      <div>
+        <h3 class="eyebrow" style="margin-bottom:4px">Playoff odds over the season</h3>
+        <p class="sub" style="margin-bottom:8px">P(playoffs) from each daily simulation.</p>
+        <div class="chart"><canvas id="playoffchart" role="img" aria-label="Seattle playoff probability by date"></canvas></div>
+      </div>
+    </div>
+    <p class="note">Simplified tiebreakers; games simulated independently with the current model.</p>
+    {% else %}
+    <h2 id="outlook-h">Season projection</h2>
+    <div class="empty"><strong>No simulation yet</strong>The rest of the season is simulated once a day during the season.</div>
     {% endif %}
   </section>
 
@@ -619,6 +665,41 @@ const DATA = {{ data_json|safe }};
             callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` } } },
           scales: { y: { min: lo, max: hi, ticks: { callback: v => v + "%" }, title: axisTitle("Seahawks win %") },
                     x: { grid: { display: false }, ticks: { color: ink } } } },
+      }));
+    }
+
+    const ss = DATA.season_sim;
+    const wd = document.getElementById("winsdist");
+    if (ss && wd) {
+      const s = ss.latest, byWins = {};
+      s.win_dist.forEach(d => { byWins[d.wins] = d.prob * 100; });
+      const ws = s.win_dist.map(d => d.wins);
+      const xs = [];
+      for (let w = Math.min(...ws); w <= Math.max(...ws); w++) xs.push(w);
+      const inRange = w => w >= Math.floor(s.wins_p10 + 0.5) && w <= Math.floor(s.wins_p90 + 0.5);
+      charts.push(new Chart(wd, {
+        type: "bar",
+        data: { labels: xs.map(String), datasets: [{ label: "Simulations", data: xs.map(w => byWins[w] || 0),
+          backgroundColor: xs.map(w => inRange(w) ? green : css("--track")), borderRadius: 2, maxBarThickness: 34 }] },
+        options: { maintainAspectRatio: false,
+          plugins: { tooltip: { callbacks: { title: c => `${c[0].label} wins`, label: c => ` ${c.parsed.y.toFixed(1)}% of simulations` } } },
+          scales: { y: { beginAtZero: true, ticks: { callback: v => v + "%" }, title: axisTitle("Share of simulations") },
+                    x: { grid: { display: false }, title: axisTitle("Seattle wins"), ticks: { color: ink } } } },
+      }));
+    }
+    const pc = document.getElementById("playoffchart");
+    if (ss && pc) {
+      const fmt = d => { try { return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
+        .format(new Date(d + "T00:00:00Z")); } catch (e) { return d; } };
+      charts.push(new Chart(pc, {
+        type: "line",
+        data: { labels: ss.series.map(r => fmt(r.date)), datasets: [{ label: "P(playoffs)",
+          data: ss.series.map(r => r.p_playoffs * 100), borderColor: green, backgroundColor: green, borderWidth: 3,
+          pointRadius: ss.series.length > 40 ? 0 : 3, pointHoverRadius: 6, tension: 0 }] },
+        options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          plugins: { tooltip: { callbacks: { label: c => ` Playoffs: ${c.parsed.y.toFixed(0)}%` } } },
+          scales: { y: { min: 0, max: 100, ticks: { stepSize: 25, callback: v => v + "%" }, title: axisTitle("Playoff probability") },
+                    x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 } } } },
       }));
     }
 
