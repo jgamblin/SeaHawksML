@@ -363,7 +363,7 @@
     {% if ss %}
     {% set s = ss.latest %}
     {% set rec = s.record_now.split("-") %}
-    <h2 id="outlook-h">{{ s.season }} projection</h2>
+    <h2 id="outlook-h">{{ s.season }} {{ "final" if ss.final else "projection" }}</h2>
     <p class="sub">Seattle is <b class="num">{{ rec[0] }}-{{ rec[1] }}{% if rec[2] != "0" %}-{{ rec[2] }}{% endif %}</b>. The rest of the regular season, simulated {{ "{:,}".format(s.n_sims) }} times as of <span data-utc="{{ s.as_of }}" data-fmt="date">{{ s.as_of[:10] }}</span>.</p>
     <div class="outlook-kpis">
       <div class="kpi lead">
@@ -387,7 +387,7 @@
         <div class="chart"><canvas id="playoffchart" role="img" aria-label="Seattle playoff probability by date"></canvas></div>
       </div>
     </div>
-    <p class="note">Simplified tiebreakers; games simulated independently with the current model.</p>
+    <p class="note">Simplified tiebreakers. Games simulated independently; team strength is not resampled.</p>
     {% else %}
     <h2 id="outlook-h">Season projection</h2>
     <div class="empty"><strong>No simulation yet</strong>The rest of the season is simulated once a day during the season.</div>

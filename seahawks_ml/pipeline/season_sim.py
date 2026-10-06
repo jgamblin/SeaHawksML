@@ -30,8 +30,9 @@ N_WILD_CARDS = 3
 SIM_KEYS = {
     "as_of", "season", "team", "n_sims", "wins_mean", "wins_p10", "wins_p50", "wins_p90", "win_dist",
     "p_playoffs", "p_division", "p_top_seed", "record_now", "model_version", "sim_day",
+    "games_remaining",
 }
-OPTIONAL_KEYS = {"sim_day"}  # absent from snapshots logged before the field existed
+OPTIONAL_KEYS = {"sim_day", "games_remaining"}  # absent from snapshots logged before the field existed
 SIM_ONLY_HOURS = (10, 14, 18, 22)  # UTC hours at which a run with nothing else to do attempts the sim
 SIM_DAY_OFFSET_HOURS = 10  # a sim day starts at 10:00 UTC, after every US night game has ended
 
@@ -166,6 +167,8 @@ def simulate_season(games: pl.DataFrame, p_home_by_game: dict[str, float], teams
         "p_division": round(float(winner[:, t].mean()), 4),
         "p_top_seed": round(float((winner[:, t] & (seed_rank[:, t] == 0)).mean()), 4),
         "record_now": record,
+        "games_remaining": games.filter(((pl.col("home_team") == team) | (pl.col("away_team") == team))
+                                        & pl.col("margin").is_null()).height,
     }
 
 

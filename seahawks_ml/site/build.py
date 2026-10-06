@@ -31,7 +31,8 @@ def season_outlook(sim_log: list[dict]) -> dict | None:
         return None
     season = max(r["season"] for r in sim_log)
     snaps = sorted((r for r in sim_log if r["season"] == season), key=lambda r: _ts(r["as_of"]))
-    return {"latest": snaps[-1],
+    # games_remaining is absent on old snapshots: treat those as not final
+    return {"latest": snaps[-1], "final": snaps[-1].get("games_remaining") == 0,
             "series": [{"date": snapshot_day(r), "p_playoffs": r["p_playoffs"]} for r in snaps]}
 
 

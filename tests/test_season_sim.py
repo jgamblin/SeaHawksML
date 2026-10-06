@@ -106,6 +106,12 @@ def test_remaining_games_are_simulated_and_ties_count_half():
     assert out["n_sims"] == 4000 and out["season"] == 2026 and out["as_of"] == NOW.isoformat()
 
 
+def test_games_remaining_counts_unplayed_team_games():
+    rows = [("SEA", "SF", 3), ("ARI", "SEA", None), ("LA", "SF", None)]
+    assert _sim(rows, probs={"g1": 0.5, "g2": 0.5})["games_remaining"] == 1
+    assert _sim(rows[:1])["games_remaining"] == 0
+
+
 def test_certain_remaining_games():
     out = _sim([("SEA", "SF", None), ("LA", "SEA", None)], probs={"g0": 1.0, "g1": 1.0})
     assert out["wins_mean"] == 1.0 and out["win_dist"] == [{"wins": 1, "prob": 1.0}]

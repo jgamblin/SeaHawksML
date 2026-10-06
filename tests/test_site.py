@@ -214,7 +214,17 @@ def test_build_site_renders_season_outlook(tmp_path):
     card = html[html.index('id="outlook-h"'):html.index('id="traj-h"')]
     assert "Season outlook" in html and 'id="winsdist"' in card and 'id="playoffchart"' in card
     assert "47%" in card and "18%" in card and "&lt;1%" in card and "9.4" in card and "7–12" in card
-    assert "3-2" in card and "Simplified tiebreakers" in card
+    assert "3-2" in card and "Simplified tiebreakers. Games simulated independently" in card
+    assert "2026 projection" in card and "final</h2>" not in card
+
+
+def test_build_site_season_outlook_final_when_no_games_remain(tmp_path):
+    log = _sim_log()
+    log[1] = {**log[1], "games_remaining": 0}  # the 2026-10-06 snapshot
+    html = _render_sim(tmp_path, log)
+    assert "2026 final</h2>" in html[html.index('id="outlook-h"'):html.index('id="traj-h"')]
+    log[1] = {**log[1], "games_remaining": 2}
+    assert build_site_data([], datetime(2026, 10, 6, 12, tzinfo=UTC), sim_log=log)["season_sim"]["final"] is False
 
 
 def test_build_site_season_outlook_empty_state(tmp_path):
