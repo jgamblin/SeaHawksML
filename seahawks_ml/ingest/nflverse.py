@@ -53,15 +53,30 @@ PLAYERS_SCHEMA = {
 }
 
 
-def aggregate_team_epa(pbp: pl.DataFrame) -> pl.DataFrame:
+# provisional; computed by controller
+FUMBLE_PLAY_EPA = -1.5
+"""League mean EPA of scrimmage plays with `fumble == 1` over the 2012-2023 seasons.
+
+A fixed constant (not the current season's mean) so that neutralization never uses
+information from games after a given kickoff and past ratings don't shift weekly.
+Derive it by averaging `epa` over pass/run plays with `fumble == 1` (non-null epa, no
+two-point tries, as in `aggregate_team_epa`) across the 2012-2023 play-by-play.
+The value here is provisional until recomputed from the real data.
+"""
+
+
+def aggregate_team_epa(pbp: pl.DataFrame, fumble_epa: float | None = FUMBLE_PLAY_EPA) -> pl.DataFrame:
     """Offensive totals per team-game from scrimmage plays (pass + run, no two-point tries).
 
     `epa_sum`/`plays` cover all scrimmage plays; `pass_*` uses nflverse `pass == 1`
     (dropbacks, so scrambles and sacks count as passes) and `rush_*` uses `rush == 1`
     (designed runs). `success_sum` counts nflverse `success` over the same plays as `plays`.
 
-    Fumble luck: on plays with `fumble == 1` the EPA is replaced by this frame's (one
-    season's) mean EPA over fumble plays, so who happens to recover doesn't move ratings.
+    Fumble luck: on plays with `fumble == 1` the EPA is replaced by the fixed constant
+    `fumble_epa` (default `FUMBLE_PLAY_EPA`, the 2012-2023 league mean over fumble plays),
+    so who happens to recover doesn't move ratings. `None` disables neutralization.
+    Caveats: the overwrite applies even when the offense recovers its own fumble, and
+    `success` is not neutralized.
     """
     plays = pbp.filter(
         pl.col("play_type").is_in(["pass", "run"])
@@ -70,9 +85,8 @@ def aggregate_team_epa(pbp: pl.DataFrame) -> pl.DataFrame:
         & (pl.col("two_point_attempt").fill_null(0) != 1)
     )
     fumble = pl.col("fumble").fill_null(0) == 1
-    fumble_mean = plays.filter(fumble)["epa"].mean()
-    if fumble_mean is not None:
-        plays = plays.with_columns(pl.when(fumble).then(pl.lit(fumble_mean)).otherwise(pl.col("epa")).alias("epa"))
+    if fumble_epa is not None:
+        plays = plays.with_columns(pl.when(fumble).then(pl.lit(fumble_epa)).otherwise(pl.col("epa")).alias("epa"))
     is_pass = pl.col("pass").fill_null(0) == 1
     is_rush = pl.col("rush").fill_null(0) == 1
     return (

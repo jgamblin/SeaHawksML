@@ -1,6 +1,6 @@
 import polars as pl
 
-from seahawks_ml.ingest.nflverse import aggregate_qb_games, aggregate_team_epa
+from seahawks_ml.ingest.nflverse import FUMBLE_PLAY_EPA, aggregate_qb_games, aggregate_team_epa
 
 
 def _pbp():
@@ -47,18 +47,34 @@ def test_aggregate_team_epa_pass_rush_success_split():
     assert sea["success_sum"] == 2.0
 
 
-def test_aggregate_team_epa_neutralizes_fumble_luck():
-    pbp = _pbp().with_columns(
-        pl.Series("fumble", [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]))
-    rows = {r["team"]: r for r in aggregate_team_epa(pbp).iter_rows(named=True)}
-    # scrimmage fumble plays: 0.5, -0.1 (LA) and 1.0 (SEA) -> season fumble mean 0.4667
-    m = (0.5 - 0.1 + 1.0) / 3
+def _fumble_pbp():
+    return _pbp().with_columns(pl.Series("fumble", [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]))
+
+
+def test_aggregate_team_epa_neutralizes_fumble_luck_with_constant():
+    rows = {r["team"]: r for r in aggregate_team_epa(_fumble_pbp()).iter_rows(named=True)}
+    m = FUMBLE_PLAY_EPA  # not the frame's own fumble mean (0.4667)
     assert abs(rows["LA"]["epa_sum"] - 2 * m) < 1e-9
     assert abs(rows["LA"]["pass_epa_sum"] - m) < 1e-9
     assert abs(rows["LA"]["rush_epa_sum"] - m) < 1e-9
     assert abs(rows["SEA"]["epa_sum"] - (m + 0.9)) < 1e-9
     assert abs(rows["SEA"]["pass_epa_sum"] - (m + 0.9)) < 1e-9
     assert rows["SEA"]["plays"] == 2
+    # success is not neutralized
+    assert rows["LA"]["success_sum"] == 1.0
+
+
+def test_aggregate_team_epa_fumble_value_is_independent_of_frame():
+    # dropping the later fumble play must not change the earlier ones' value
+    pbp = _fumble_pbp()
+    full = {r["team"]: r for r in aggregate_team_epa(pbp).iter_rows(named=True)}
+    part = {r["team"]: r for r in aggregate_team_epa(pbp.head(3)).iter_rows(named=True)}
+    assert part["LA"]["epa_sum"] == full["LA"]["epa_sum"]
+
+
+def test_aggregate_team_epa_fumble_epa_override():
+    rows = {r["team"]: r for r in aggregate_team_epa(_fumble_pbp(), fumble_epa=-3.0).iter_rows(named=True)}
+    assert abs(rows["LA"]["epa_sum"] + 6.0) < 1e-9
 
 
 def test_aggregate_qb_games_sums_dropbacks():
