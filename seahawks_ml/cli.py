@@ -29,9 +29,16 @@ RATING_GRID = [
     (0.5, 4.0, 2.0, True, True), (0.7, 6.0, 3.0, True, True), (0.6, 4.0, 2.0, True, True),
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
-# Stage 0c candidates beyond the default "count" mode: AvailabilityParams fields (mode, prior_opps, quality_scale).
-AVAILABILITY_GRID = [("groups", 60.0, 4.0),
-                     *[("values", k, scale) for k in (30.0, 90.0) for scale in (2.0, 6.0)]]
+# Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 7 extra builds):
+# groups; values with other skill-player shrinkage/scale; values with flat (draft capital and durability
+# ignored) and wider-spread lineman weights.
+AVAILABILITY_GRID = [
+    {"mode": "groups"},
+    *[{"mode": "values", "prior_opps": k, "quality_scale": scale} for k in (30.0, 90.0) for scale in (2.0, 6.0)],
+    {"mode": "values", "lineman_quality": {"round_1": 1.0, "day_2": 1.0, "later": 1.0, "udfa": 1.0},
+     "durability_weight": 0.0},
+    {"mode": "values", "lineman_quality": {"round_1": 1.5, "day_2": 1.2, "later": 1.0, "udfa": 0.8}},
+]
 FORECAST_HORIZON = timedelta(days=16)
 
 
@@ -118,8 +125,8 @@ def cmd_backtest(args) -> None:
         print(f"  {best[1]:.5f}  {config.availability}")
         feature_trials.append({"stage": "availability", "availability": config.availability.to_dict(),
                                "log_loss": best[1]})
-        for mode, prior_opps, scale in AVAILABILITY_GRID:
-            cand = replace(config, availability=AvailabilityParams(mode, prior_opps, scale))
+        for fields in AVAILABILITY_GRID:
+            cand = replace(config, availability=AvailabilityParams(**fields))
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.availability}")
             feature_trials.append({"stage": "availability", "availability": cand.availability.to_dict(),

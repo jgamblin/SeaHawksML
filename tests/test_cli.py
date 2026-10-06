@@ -386,10 +386,18 @@ def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
     monkeypatch.setattr(store, "save_config", lambda cfg: written.update(saved=cfg))
     cli.cmd_backtest(Namespace(now=None, tune_features=True))
     assert written["saved"].availability == winner
-    avail_builds = [c for c in built if c.availability.mode != "count"]
-    assert 0 < len(avail_builds) <= 6
+    assert built[-1] == written["saved"]  # the last build is the final frame for the winner
+    avail_builds = [c for c in built[:-1] if c.availability.mode != "count"]
+    assert 0 < len(avail_builds) <= 7  # extra feature builds for stage 0c
     modes = {c.availability.mode for c in avail_builds}
     assert modes == {"groups", "values"}
+    # lineman variants: flat (draft capital and durability ignored) and a wider draft spread
+    linemen = {(dict(c.availability.lineman_quality)["round_1"], dict(c.availability.lineman_quality)["udfa"],
+                c.availability.durability_weight) for c in avail_builds}
+    assert (1.0, 1.0, 0.0) in linemen
+    assert any(r1 == 1.5 and udfa == 0.8 for r1, udfa, _ in linemen)
+    flat = next(c.availability for c in avail_builds if c.availability.durability_weight == 0.0)
+    assert set(dict(flat.lineman_quality).values()) == {1.0}
     trials = [t for t in written["feature_trials"] if t["stage"] == "availability"]
     assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values"}
     assert any(t["availability"] == winner.to_dict() and t["log_loss"] == 0.5 for t in trials)
