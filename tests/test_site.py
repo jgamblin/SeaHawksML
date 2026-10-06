@@ -72,3 +72,15 @@ def test_backtest_trials_dropped(tmp_path, monkeypatch):
     monkeypatch.setattr(build, "BACKTEST_PATH", bt)
     data = build_site_data(read_history(_history(tmp_path)), datetime(2026, 10, 10, 19, tzinfo=UTC))
     assert data["backtest"] == {"seasons": [2020], "score": {"n": 1}}
+
+
+def test_site_data_uses_latest_kickoff(tmp_path):
+    from seahawks_ml.pipeline.history import read_history
+    path = tmp_path / "h.jsonl"
+    append_record(_pred("g2", "midweek", "2026-10-07T12:00:00+00:00", "2026-10-11T20:25:00+00:00", 0.52), path)
+    moved = _pred("g2", "final_injury", "2026-10-10T18:00:00+00:00", "2026-10-12T01:15:00+00:00", 0.48)
+    moved["opponent"], moved["seahawks_home"] = "LA", False
+    append_record(moved, path)
+    data = build_site_data(read_history(path), datetime(2026, 10, 10, 19, tzinfo=UTC))
+    g = data["season_log"][0]
+    assert (g["kickoff_utc"], g["opponent"], g["seahawks_home"]) == ("2026-10-12T01:15:00+00:00", "LA", False)

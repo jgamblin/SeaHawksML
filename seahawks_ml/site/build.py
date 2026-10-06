@@ -50,6 +50,7 @@ def build_site_data(history: list[dict], now: datetime) -> dict:
         g["trajectory"].append({"run_type": p["run_type"], "predicted_at": p["predicted_at"],
                                 "p_seahawks": p["p_seahawks"], "margin_seahawks": p["margin_seahawks"],
                                 "p_vegas_seahawks": p["p_vegas_seahawks"]})
+        g.update(opponent=p["opponent"], kickoff_utc=p["kickoff_utc"], seahawks_home=p["seahawks_home"])
         g["latest"] = p
         g["result"] = results.get(p["game_id"])
     upcoming = [g for g in games.values() if g["result"] is None and _ts(g["kickoff_utc"]) > now]
