@@ -242,6 +242,25 @@ def test_sim_only_run_waits_for_sim_hours(predict_env):
     assert changed and len(env.loads) == 1
 
 
+def _previous_game_unplayed(env, monkeypatch):
+    """Make SEA's previous game (week 5) look unplayed in the loaded schedule."""
+    from seahawks_ml.stadiums import load_stadiums
+    games = env.raw.games.with_columns(
+        pl.when(pl.col("game_id").str.starts_with("2014_05_") & pl.col("game_id").str.contains("SEA"))
+        .then(None).otherwise(pl.col("margin")).alias("margin"))
+    monkeypatch.setattr(cli, "_load", lambda now, games_=None: (load_stadiums(), replace(env.raw, games=games)))
+
+
+def test_sim_skipped_when_previous_game_has_no_result(predict_env, monkeypatch, capsys):
+    env, changed = predict_env, []
+    _previous_game_unplayed(env, monkeypatch)
+    cli._predict(_args((env.kick - timedelta(hours=36)).replace(hour=14)), changed)  # sim-only path
+    assert not changed and not env.sim.exists() and "no final result" in capsys.readouterr().out
+    # forced prediction run (skips previous_game_ready) must not simulate either
+    cli._predict(_args(env.kick - timedelta(hours=12), run_type="final_injury"), changed)
+    assert changed and not env.sim.exists() and "no final result" in capsys.readouterr().out
+
+
 def test_predict_skips_season_sim_outside_season(predict_env):
     env, changed = predict_env, []
     cli._predict(_args(env.kick + timedelta(days=30)), changed)

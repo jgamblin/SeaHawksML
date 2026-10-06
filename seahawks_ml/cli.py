@@ -186,7 +186,12 @@ def _run_season_sim(games: pl.DataFrame, frame: pl.DataFrame, model, now: dateti
     from seahawks_ml.data import current_season
     from seahawks_ml.ingest import nflverse
     from seahawks_ml.pipeline import season_sim
+    from seahawks_ml.pipeline.gate import team_schedule
 
+    past = team_schedule(games, TEAM).filter(pl.col("kickoff_utc") < now)
+    if past.height and past["margin"][-1] is None:  # its result would be simulated as if unplayed
+        print(f"season simulation skipped: {TEAM}'s previous game {past['game_id'][-1]} has no final result yet")
+        return False
     season = current_season(games, now)
     probs = season_sim.remaining_game_probs(frame, model, season)
     rec = season_sim.simulate_season(games, probs, nflverse.load_teams(), season, now=now)
@@ -307,7 +312,7 @@ def _predict(args, changed: list[bool]) -> None:
     if run_type and not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
         print("previous game data not in yet; will retry next hour")
         run_type = None
-        sim_due = False  # its result would be simulated as if unplayed
+        sim_due = False  # data (EPA/results) is still catching up; the sim retries next hour with the rest
         if not league_ids:
             return
     target_ids = list(league_ids) + ([game["game_id"]] if run_type else [])
