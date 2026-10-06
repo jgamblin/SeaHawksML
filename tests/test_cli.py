@@ -367,6 +367,47 @@ def test_backtest_stage0_picks_best_rating_params(monkeypatch, tmp_path, capsys)
     assert f"best rating: {winner}" in capsys.readouterr().out
 
 
+def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
+    import seahawks_ml.models.backtest as bt
+    import seahawks_ml.models.store as store
+    from seahawks_ml.features.availability import AvailabilityParams
+
+    winner = AvailabilityParams(mode="values", prior_opps=90.0, quality_scale=2.0)
+    written, built = {}, []
+    monkeypatch.setattr(cli, "_load", lambda now: (None, None))
+    monkeypatch.setattr(cli, "_build", lambda raw, stadiums, config: built.append(config) or config)
+    monkeypatch.setattr(bt, "walk_forward_log_loss",
+                        lambda cfg, model, seasons: 0.5 if cfg.availability == winner
+                        else 0.6 if cfg.availability.mode == "groups" else 0.7)
+    monkeypatch.setattr(bt, "tune", lambda frame, seasons: (frame.model, []))
+    monkeypatch.setattr(bt, "walk_forward", lambda frame, model, seasons: None)
+    monkeypatch.setattr(bt, "score", lambda preds: {})
+    monkeypatch.setattr(bt, "write_json", lambda path, d: written.update(d))
+    monkeypatch.setattr(store, "save_config", lambda cfg: written.update(saved=cfg))
+    cli.cmd_backtest(Namespace(now=None, tune_features=True))
+    assert written["saved"].availability == winner
+    avail_builds = [c for c in built if c.availability.mode != "count"]
+    assert 0 < len(avail_builds) <= 6
+    modes = {c.availability.mode for c in avail_builds}
+    assert modes == {"groups", "values"}
+    trials = [t for t in written["feature_trials"] if t["stage"] == "availability"]
+    assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values"}
+    assert any(t["availability"] == {**winner.__dict__} and t["log_loss"] == 0.5 for t in trials)
+    assert f"best availability: {winner}" in capsys.readouterr().out
+
+
+def test_build_passes_availability_params(monkeypatch):
+    import seahawks_ml.features.build as build
+    from seahawks_ml.features.availability import AvailabilityParams
+    from seahawks_ml.models.store import ProjectConfig
+
+    seen = {}
+    monkeypatch.setattr(build, "build_features", lambda raw, st, r, q, a: seen.update(a=a))
+    cfg = ProjectConfig(availability=AvailabilityParams(mode="groups"))
+    cli._build(None, None, cfg)
+    assert seen["a"] == cfg.availability
+
+
 def test_sim_only_run_survives_data_load_failure(predict_env, monkeypatch, capsys):
     env, changed = predict_env, []
 

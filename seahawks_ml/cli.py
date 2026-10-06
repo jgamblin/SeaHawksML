@@ -29,6 +29,9 @@ RATING_GRID = [
     (0.5, 4.0, 2.0, True, True), (0.7, 6.0, 3.0, True, True), (0.6, 4.0, 2.0, True, True),
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
+# Stage 0c candidates beyond the default "count" mode: AvailabilityParams fields (mode, prior_opps, quality_scale).
+AVAILABILITY_GRID = [("groups", 60.0, 4.0),
+                     *[("values", k, scale) for k in (30.0, 90.0) for scale in (2.0, 6.0)]]
 FORECAST_HORIZON = timedelta(days=16)
 
 
@@ -60,7 +63,7 @@ def _load(now: datetime, games: pl.DataFrame | None = None):
 def _build(raw, stadiums, config) -> pl.DataFrame:
     from seahawks_ml.features.build import build_features
 
-    return build_features(raw, stadiums, config.rating, config.qb)
+    return build_features(raw, stadiums, config.rating, config.qb, config.availability)
 
 
 def cmd_features(args) -> None:
@@ -79,6 +82,7 @@ def cmd_features(args) -> None:
 
 def cmd_backtest(args) -> None:
     """Local only: tune feature params + model config by walk-forward, lock models/config.json."""
+    from seahawks_ml.features.availability import AvailabilityParams
     from seahawks_ml.features.qb import QBParams
     from seahawks_ml.features.ratings import RatingParams
     from seahawks_ml.models.backtest import score, tune, walk_forward, walk_forward_log_loss, write_json
@@ -110,6 +114,20 @@ def cmd_backtest(args) -> None:
             if ll < best[1]:
                 best = (cand, ll)
         config = best[0]
+        print("stage 0c: injury availability (starters out / position groups / player values)")
+        print(f"  {best[1]:.5f}  {config.availability}")
+        feature_trials.append({"stage": "availability", "availability": asdict(config.availability),
+                               "log_loss": best[1]})
+        for mode, prior_opps, scale in AVAILABILITY_GRID:
+            cand = replace(config, availability=AvailabilityParams(mode, prior_opps, scale))
+            ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
+            print(f"  {ll:.5f}  {cand.availability}")
+            feature_trials.append({"stage": "availability", "availability": asdict(cand.availability),
+                                   "log_loss": ll})
+            if ll < best[1]:
+                best = (cand, ll)
+        config = best[0]
+        print(f"  best availability: {config.availability}")
     frame = _build(raw, stadiums, config)
     model_config, trials = tune(frame, seasons)
     config = replace(config, model=model_config)
@@ -408,7 +426,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("features", help="refresh data and rebuild the feature table").set_defaults(func=cmd_features)
     bt = sub.add_parser("backtest", help="LOCAL: tune by walk-forward and lock models/config.json")
-    bt.add_argument("--tune-features", action="store_true", help="also tune rating/QB shrinkage (slow)")
+    bt.add_argument("--tune-features", action="store_true", help="also tune rating/QB/injury features (slow)")
     bt.set_defaults(func=cmd_backtest)
     ho = sub.add_parser("holdout", help="LOCAL: evaluate locked config on 2024-2025 (once)")
     ho.add_argument("--force", action="store_true")
