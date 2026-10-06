@@ -43,6 +43,7 @@ def aggregate_team_epa(pbp: pl.DataFrame) -> pl.DataFrame:
         pl.col("play_type").is_in(["pass", "run"])
         & pl.col("epa").is_not_null()
         & pl.col("posteam").is_not_null()
+        & (pl.col("two_point_attempt").fill_null(0) != 1)
     )
     return (
         plays.group_by("game_id", "season", "posteam", "defteam")
@@ -59,18 +60,18 @@ def aggregate_qb_games(pbp: pl.DataFrame) -> pl.DataFrame:
     """Dropback totals per passer per game."""
     drops = pbp.filter(
         (pl.col("qb_dropback") == 1)
-        & pl.col("passer_player_id").is_not_null()
+        & pl.col("passer_id").is_not_null()  # includes scrambles, unlike passer_player_id
         & pl.col("qb_epa").is_not_null()
     )
     return (
-        drops.group_by("game_id", "season", "posteam", "passer_player_id")
+        drops.group_by("game_id", "season", "posteam", "passer_id")
         .agg(
             pl.len().alias("dropbacks"),
             pl.col("qb_epa").sum().alias("qb_epa_sum"),
             pl.col("cpoe").sum().alias("cpoe_sum"),
             pl.col("cpoe").count().alias("cpoe_n"),
         )
-        .rename({"posteam": "team", "passer_player_id": "qb_id"})
+        .rename({"posteam": "team", "passer_id": "qb_id"})
         .with_columns(normalize_team("team"))
         .cast(QB_GAMES_SCHEMA)
         .select(list(QB_GAMES_SCHEMA))
