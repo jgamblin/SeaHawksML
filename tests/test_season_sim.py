@@ -145,7 +145,8 @@ def test_season_in_progress():
     games = _games([("SEA", "SF", 3), ("SF", "SEA", None)]).with_columns(
         pl.Series("kickoff_utc", [NOW - timedelta(days=3), NOW + timedelta(days=4)]))
     assert season_in_progress(games, NOW)
-    assert not season_in_progress(games, NOW + timedelta(days=5))  # regular season over
+    assert season_in_progress(games, NOW + timedelta(days=6))  # final results come in after the last game
+    assert not season_in_progress(games, NOW + timedelta(days=8))  # regular season over
 
 
 def _league_schedule(n_weeks=17, played_weeks=4, seed=0):
@@ -174,3 +175,29 @@ def test_full_league_simulation_is_fast():
     assert elapsed < 5.0
     assert 0 <= out["p_top_seed"] <= out["p_division"] <= out["p_playoffs"] <= 1
     assert sum(d["prob"] for d in out["win_dist"]) == pytest.approx(1.0)
+
+
+def test_remaining_game_probs_uses_model_with_elo_fallback():
+    import numpy as np
+
+    from seahawks_ml.features.build import build_features
+    from seahawks_ml.pipeline.season_sim import remaining_game_probs
+    from seahawks_ml.stadiums import load_stadiums
+    from tests.synthetic import make_raw
+
+    frame = build_features(make_raw(seasons=(2012, 2013, 2014), unplayed_last_week=True), load_stadiums())
+    unplayed = frame.filter((pl.col("season") == 2014) & pl.col("margin").is_null())["game_id"].to_list()
+    broken = unplayed[0]
+    frame = frame.with_columns(pl.when(pl.col("game_id") == broken).then(None).otherwise(pl.col("qb_epa_diff"))
+                               .alias("qb_epa_diff"))
+
+    class Fake:
+        def predict(self, rows):
+            assert broken not in rows["game_id"].to_list()
+            return {"p_win": np.full(rows.height, 0.6)}
+
+    probs = remaining_game_probs(frame, Fake(), 2014)
+    assert set(probs) == set(unplayed) and len(unplayed) == 2
+    assert all(probs[g] == 0.6 for g in unplayed if g != broken)
+    assert 0 < probs[broken] < 1 and probs[broken] != 0.6
+    assert remaining_game_probs(frame, Fake(), 2013) == {}

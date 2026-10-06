@@ -14,7 +14,7 @@ Win pct counts a tie as half a win. Everything is vectorized over simulations.
 """
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -188,13 +188,17 @@ def remaining_game_probs(frame: pl.DataFrame, model, season: int) -> dict[str, f
     return probs
 
 
+FINAL_SNAPSHOT_GRACE = timedelta(days=3)  # keep simulating briefly so final results get a snapshot
+
+
 def season_in_progress(games: pl.DataFrame, now: datetime) -> bool:
-    """True while the current season still has regular-season games to play."""
+    """True from the week before the current season's opener until a few days after its last
+    regular-season game."""
     if not games.height:
         return False
     season = current_season(games, now)
-    return games.filter((pl.col("season") == season) & (pl.col("game_type") == "REG")
-                        & (pl.col("kickoff_utc") > now)).height > 0
+    last = games.filter((pl.col("season") == season) & (pl.col("game_type") == "REG"))["kickoff_utc"].max()
+    return last is not None and now < last + FINAL_SNAPSHOT_GRACE
 
 
 def _prob(x) -> bool:
