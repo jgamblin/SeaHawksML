@@ -74,6 +74,9 @@ def compute_qb_features(
     history: dict[str, list[dict]] = defaultdict(list)
     for r in sorted(qb_rows, key=lambda x: x["kickoff_utc"]):
         history[r["qb_id"]].append(r)
+    team_history: dict[str, list[dict]] = defaultdict(list)
+    for r in sorted(qb_rows, key=lambda x: x["kickoff_utc"]):
+        team_history[r["team"]].append(r)
     priors = _bucket_priors(qb_rows, player_info, games["season"].to_list())
 
     def rate(qb_id: str | None, season: int, ko) -> tuple[float, float, str]:
@@ -92,10 +95,29 @@ def compute_qb_features(
         k = params.prior_dropbacks
         return (k * p_epa + epa) / (k + n), (k * p_cpoe + c_sum) / (k + c_n), bucket
 
+    def latest_starter(team: str, ko) -> str | None:
+        """QB with the most dropbacks in the team's latest game before kickoff."""
+        best: dict | None = None
+        for h in reversed(team_history.get(team, [])):
+            if h["kickoff_utc"] >= ko:
+                continue
+            if best is None:
+                best = h
+            elif h["game_id"] == best["game_id"]:
+                if h["dropbacks"] > best["dropbacks"]:
+                    best = h
+            else:
+                break
+        return best["qb_id"] if best else None
+
     rows = []
     for g in games.iter_rows(named=True):
-        h_epa, h_cpoe, h_b = rate(g["home_qb_id"], g["season"], g["kickoff_utc"])
-        a_epa, a_cpoe, a_b = rate(g["away_qb_id"], g["season"], g["kickoff_utc"])
+        ko = g["kickoff_utc"]
+        # Expected starters are often unannounced far ahead: use the team's last starter.
+        home_qb = g["home_qb_id"] or latest_starter(g["home_team"], ko)
+        away_qb = g["away_qb_id"] or latest_starter(g["away_team"], ko)
+        h_epa, h_cpoe, h_b = rate(home_qb, g["season"], ko)
+        a_epa, a_cpoe, a_b = rate(away_qb, g["season"], ko)
         rows.append({"game_id": g["game_id"], "home_qb_epa": h_epa, "away_qb_epa": a_epa,
                      "home_qb_cpoe": h_cpoe, "away_qb_cpoe": a_cpoe,
                      "home_qb_bucket": h_b, "away_qb_bucket": a_b})

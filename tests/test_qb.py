@@ -62,3 +62,19 @@ def test_rating_uses_only_games_before_kickoff():
     # VET's 2021 games see the 40 dropbacks from 2020, shrunk to the day_2 prior (pooled 0.1)
     assert out["g2"]["home_qb_epa"] == pytest.approx((250 * 0.1 + 8.0) / 290)
     assert out["g2"]["home_qb_bucket"] == "day_2"
+
+
+def test_null_expected_starter_falls_back_to_teams_latest_starter():
+    games, qb, players = _setup()
+    extra = pl.DataFrame([
+        _game("g4", 2021, 15, None, None),  # unknown starters
+        _game("g5", 2021, 15, "VET", "ROOK2"),  # same day, known starters
+        _game("g6", 2021, 15, None, None) | {"away_team": "KC"},  # KC has no history
+    ], schema=GAMES_SCHEMA)
+    games = pl.concat([games, extra])
+    out = {r["game_id"]: r for r in compute_qb_features(games, qb, players, QBParams(250, 3)).iter_rows(named=True)}
+    # SEA's latest starter before g4 is VET (g1), SF's is ROOK2 (g2)
+    for col in ("home_qb_epa", "home_qb_cpoe", "home_qb_bucket", "away_qb_epa", "away_qb_bucket"):
+        assert out["g4"][col] == out["g5"][col]
+    assert out["g4"]["home_qb_bucket"] == "day_2"
+    assert out["g6"]["away_qb_bucket"] == "day_3_udfa"  # no history: unchanged behavior
