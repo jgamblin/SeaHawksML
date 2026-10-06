@@ -86,3 +86,40 @@ def test_single_game_row(setup):
         single_game_row(frame, "nope")
     with pytest.raises(SystemExit, match="exactly one feature row"):
         single_game_row(pl.concat([frame.head(1), frame.head(1)]), gid)
+
+
+def _home_row(frame):
+    return frame.filter((pl.col("home_team") == "SEA") & ~pl.col("neutral")).tail(1)
+
+
+def test_away_perspective_flips_everything(setup):
+    _, frame, model = setup
+    home_row = _home_row(frame)
+    away_row = home_row.with_columns(pl.lit("SF").alias("home_team"), pl.lit("SEA").alias("away_team"))
+    now = home_row["kickoff_utc"][0] - timedelta(hours=3)
+    h = make_prediction(home_row, model, "gameday", now, "v1", None)
+    a = make_prediction(away_row, model, "gameday", now, "v1", None)
+    assert h["seahawks_home"] is True and a["seahawks_home"] is False
+    assert a["opponent"] == "SF" and h["opponent"] == home_row["away_team"][0]
+    assert a["p_seahawks"] == pytest.approx(1 - h["p_seahawks"], abs=1e-3)
+    assert a["margin_seahawks"] == pytest.approx(-h["margin_seahawks"], abs=1e-2)
+    assert a["margin_lo"] == pytest.approx(-h["margin_hi"], abs=0.1)
+    assert a["margin_hi"] == pytest.approx(-h["margin_lo"], abs=0.1)
+    assert a["margin_lo"] <= a["margin_hi"]
+    assert a["p_vegas_seahawks"] == pytest.approx(1 - h["p_vegas_seahawks"], abs=1e-3)
+    assert [f["feature"] for f in a["top_factors"]] == [f["feature"] for f in h["top_factors"]]
+    for fa, fh in zip(a["top_factors"], h["top_factors"], strict=True):
+        assert fa["points"] == pytest.approx(-fh["points"], abs=0.01)
+
+
+def test_neutral_site_is_not_seahawks_home(setup):
+    _, frame, model = setup
+    home_row = _home_row(frame)
+    neutral_row = home_row.with_columns(pl.lit(True).alias("neutral"))
+    now = home_row["kickoff_utc"][0] - timedelta(hours=3)
+    rec = make_prediction(neutral_row, model, "midweek", now, "v1", None)
+    base = make_prediction(home_row, model, "midweek", now, "v1", None)
+    assert rec["seahawks_home"] is False and base["seahawks_home"] is True
+    # SEA is still the nominal home team in the feature row, so the probability is not flipped
+    assert rec["p_seahawks"] == pytest.approx(base["p_seahawks"], abs=1e-3)
+    assert rec["margin_lo"] <= rec["margin_hi"]
