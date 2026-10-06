@@ -36,12 +36,12 @@ def _set_output(key: str, value: str) -> None:
             f.write(f"{key}={value}\n")
 
 
-def _load(now: datetime):
+def _load(now: datetime, games: pl.DataFrame | None = None):
     from seahawks_ml.data import load_raw
     from seahawks_ml.stadiums import load_stadiums
 
     stadiums = load_stadiums()
-    return stadiums, load_raw(stadiums, now)
+    return stadiums, load_raw(stadiums, now, games)
 
 
 def _build(raw, stadiums, config) -> pl.DataFrame:
@@ -180,7 +180,7 @@ def _predict(args, changed: list[bool]) -> None:
 
     print(f"{run_type} run for {game['game_id']}")
     config = load_config()
-    stadiums, raw = _load(now)
+    stadiums, raw = _load(now, games)
     if not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
         print("previous game data not in yet; will retry next hour")
         return

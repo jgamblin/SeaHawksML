@@ -48,11 +48,15 @@ class RawData:
         )
 
 
-def load_raw(stadiums: dict[str, Stadium], now: datetime) -> RawData:
-    """Download/refresh all inputs. Completed seasons come from data/cache."""
+def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | None = None) -> RawData:
+    """Download/refresh all inputs. Completed seasons come from data/cache.
+
+    Pass an already-prepared `games` table to avoid downloading the schedule again.
+    """
     from seahawks_ml.ingest import nflverse, weather
 
-    games = prepare_games(nflverse.load_schedules(), stadiums)
+    if games is None:
+        games = prepare_games(nflverse.load_schedules(), stadiums)
     current = int(games.filter(pl.col("kickoff_utc") <= now)["season"].max())
     seasons = list(range(FIRST_RATING_SEASON, current + 1))
     # Refetch last season's cache once after its final game (+7d) so late playoff
