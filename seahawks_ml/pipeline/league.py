@@ -105,12 +105,36 @@ def new_league_results(league_log: list[dict], games: pl.DataFrame, now: datetim
             for g in finished.sort("game_id").iter_rows(named=True)]
 
 
+def _honest_predictions(league_log: list[dict]) -> list[dict]:
+    """Earliest prediction per game, excluding any made at or after kickoff (or with unparseable times)."""
+    earliest: dict[str, tuple[datetime, dict]] = {}
+    for p in league_log:
+        if p["type"] != "league_prediction":
+            continue
+        try:
+            made, kick = datetime.fromisoformat(p["predicted_at"]), datetime.fromisoformat(p["kickoff_utc"])
+            if made >= kick:
+                continue
+        except (TypeError, ValueError):  # unparseable, or naive vs aware
+            continue
+        if p["game_id"] not in earliest or made < earliest[p["game_id"]][0]:
+            earliest[p["game_id"]] = (made, p)
+    return [p for _, p in earliest.values()]
+
+
+def _clean(metrics: dict | None) -> dict | None:
+    """Non-finite metrics (e.g. accuracy when every game was a tie) become None so the JSON stays valid."""
+    if metrics is None:
+        return None
+    return {k: None if isinstance(v, float) and not math.isfinite(v) else v for k, v in metrics.items()}
+
+
 def league_scorecard(league_log: list[dict], season: int | None) -> dict:
     """Model vs Vegas vs Elo on completed games of `season`. Compared on the common set of games that
     have a Vegas line (all games if none do); `n_all` counts every completed game."""
     results = {r["game_id"]: r for r in league_log if r["type"] == "league_result"}
-    done = sorted((p for p in league_log if p["type"] == "league_prediction"
-                   and p["season"] == season and p["game_id"] in results),
+    done = sorted((p for p in _honest_predictions(league_log)
+                   if p["season"] == season and p["game_id"] in results),
                   key=lambda p: (p["week"], p["kickoff_utc"], p["game_id"]))
     common = [p for p in done if p["p_vegas_home"] is not None] or done
     has_vegas = any(p["p_vegas_home"] is not None for p in common)
@@ -123,9 +147,9 @@ def league_scorecard(league_log: list[dict], season: int | None) -> dict:
     probs = {k: np.array([np.nan if p[c] is None else p[c] for p in common], dtype=float) for k, c in cols.items()}
     pred_margin = np.array([p["margin_home"] for p in common], dtype=float)
     card = {"season": season, "n": len(common), "n_all": len(done),
-            "model": summarize(probs["model"], pred_margin, margins),
-            "vegas": summarize(probs["vegas"], None, margins) if has_vegas else None,
-            "elo": summarize(probs["elo"], None, margins)}
+            "model": _clean(summarize(probs["model"], pred_margin, margins)),
+            "vegas": _clean(summarize(probs["vegas"], None, margins)) if has_vegas else None,
+            "elo": _clean(summarize(probs["elo"], None, margins))}
     y, weeks = outcome(margins), np.array([p["week"] for p in common])
     by_week = {"weeks": sorted({int(w) for w in weeks}), "model": [], "vegas": [], "elo": []}
     for w in by_week["weeks"]:

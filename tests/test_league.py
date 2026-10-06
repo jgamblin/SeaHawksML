@@ -135,6 +135,32 @@ def test_scorecard_values_and_common_set():
     assert sc["by_week"]["model"][1] == pytest.approx(sc["model"]["log_loss"], abs=1e-4)
 
 
+def test_scorecard_keeps_earliest_prediction_per_game():
+    early = _pred("g0", 1, .8, .7, .6)
+    late = {**_pred("g0", 1, .1, .7, .6), "predicted_at": "2026-10-10T16:00:00+00:00"}
+    sc = league_scorecard([late, early, _res("g0", 7)], 2026)
+    assert sc["n"] == 1 and sc["n_all"] == 1
+    assert sc["model"]["log_loss"] == pytest.approx(0.2231435513, abs=1e-6)
+
+
+def test_scorecard_drops_predictions_made_at_or_after_kickoff():
+    at_kick = {**_pred("g0", 1, .8, .7, .6), "predicted_at": "2026-10-11T17:00:00+00:00"}
+    after = {**_pred("g1", 1, .8, .7, .6), "predicted_at": "2026-10-11T18:30:00+00:00"}
+    # same instant in a different offset: 12:00-05:00 == 17:00Z == kickoff
+    offset = {**_pred("g2", 1, .8, .7, .6), "predicted_at": "2026-10-11T12:00:00-05:00"}
+    ok = _pred("g3", 1, .8, .7, .6)
+    log = [at_kick, after, offset, ok] + [_res(g, 7) for g in ("g0", "g1", "g2", "g3")]
+    sc = league_scorecard(log, 2026)
+    assert sc["n"] == 1 and sc["n_all"] == 1
+
+
+def test_scorecard_all_ties_has_no_nan():
+    import json
+    sc = league_scorecard([_pred("g0", 1, .6, .5, .5), _res("g0", 0)], 2026)
+    assert sc["model"]["accuracy"] is None and sc["elo"]["accuracy"] is None
+    json.dumps(sc, allow_nan=False)
+
+
 def test_league_log_roundtrip(tmp_path):
     p = tmp_path / "l.jsonl"
     append_record(_pred("g0", 1, .5, .5, .5), p, validate_league)
