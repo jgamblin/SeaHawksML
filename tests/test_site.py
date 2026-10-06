@@ -43,3 +43,32 @@ def test_build_site_writes_html(tmp_path):
 def test_build_site_with_empty_history(tmp_path):
     out = build_site(datetime(2026, 10, 10, tzinfo=UTC), history_path=tmp_path / "none.jsonl", out_dir=tmp_path / "s")
     assert "No upcoming prediction yet" in out.read_text()
+
+
+def test_record_excludes_ties(tmp_path):
+    from seahawks_ml.pipeline.history import read_history
+    path = _history(tmp_path)
+    append_record(_pred("g3", "gameday", "2026-10-10T17:00:00+00:00", "2026-10-10T20:25:00+00:00", 0.7), path)
+    append_record({"type": "result", "game_id": "g3", "recorded_at": "2026-10-11T00:00:00+00:00",
+                   "seahawks_score": 20, "opponent_score": 20, "margin_seahawks": 0}, path)
+    data = build_site_data(read_history(path), datetime(2026, 10, 11, 1, tzinfo=UTC))
+    assert data["record"] == {"games": 1, "correct": 1}
+
+
+def test_next_game_ignores_games_already_kicked_off(tmp_path):
+    from seahawks_ml.pipeline.history import read_history
+    # g2 kicked off 10-11 20:25 and has no result yet: it is not "next"
+    data = build_site_data(read_history(_history(tmp_path)), datetime(2026, 10, 12, tzinfo=UTC))
+    assert data["next_game"] is None
+
+
+def test_backtest_trials_dropped(tmp_path, monkeypatch):
+    import json
+
+    from seahawks_ml.pipeline.history import read_history
+    from seahawks_ml.site import build
+    bt = tmp_path / "backtest.json"
+    bt.write_text(json.dumps({"seasons": [2020], "score": {"n": 1}, "trials": [{"x": 1}] * 5}))
+    monkeypatch.setattr(build, "BACKTEST_PATH", bt)
+    data = build_site_data(read_history(_history(tmp_path)), datetime(2026, 10, 10, 19, tzinfo=UTC))
+    assert data["backtest"] == {"seasons": [2020], "score": {"n": 1}}

@@ -31,6 +31,10 @@ FEATURE_LABELS = {
 }
 
 
+def _ts(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
 def _read_json(path: Path) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
@@ -48,22 +52,25 @@ def build_site_data(history: list[dict], now: datetime) -> dict:
                                 "p_vegas_seahawks": p["p_vegas_seahawks"]})
         g["latest"] = p
         g["result"] = results.get(p["game_id"])
-    upcoming = [g for g in games.values() if g["result"] is None]
+    upcoming = [g for g in games.values() if g["result"] is None and _ts(g["kickoff_utc"]) > now]
     next_game = min(upcoming, key=lambda g: g["kickoff_utc"]) if upcoming else None
     for p in [next_game["latest"]] if next_game else []:
         for f in p["top_factors"]:
             f["label"] = FEATURE_LABELS.get(f["feature"], f["feature"])
-    scored = scored_predictions(history)
-    record = {"games": len(scored),
+    decided = [s for s in scored_predictions(history) if s["result"]["margin_seahawks"] != 0]  # ties excluded
+    record = {"games": len(decided),
               "correct": sum((s["prediction"]["p_seahawks"] > 0.5) == (s["result"]["margin_seahawks"] > 0)
-                             for s in scored if s["result"]["margin_seahawks"] != 0)}
+                             for s in decided)}
+    backtest = _read_json(BACKTEST_PATH)
+    if backtest:
+        backtest = {k: v for k, v in backtest.items() if k != "trials"}  # keep the page small
     return {
         "generated_at": now.isoformat(),
         "next_game": next_game,
         "season_log": sorted(games.values(), key=lambda g: g["kickoff_utc"]),
         "record": record,
         "metrics": _read_json(METRICS_PATH),
-        "backtest": _read_json(BACKTEST_PATH),
+        "backtest": backtest,
         "holdout": _read_json(HOLDOUT_PATH),
     }
 
