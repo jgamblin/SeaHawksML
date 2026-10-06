@@ -332,3 +332,50 @@ def test_sim_only_run_survives_data_load_failure(predict_env, monkeypatch, capsy
     cli._predict(_args(env.kick - timedelta(hours=36)), changed)  # must not raise
     assert not changed and not env.sim.exists()
     assert "nflverse down" in capsys.readouterr().out
+
+
+def _holdout_env(monkeypatch, tmp_path, existing=None):
+    import json
+
+    from seahawks_ml.models import backtest, store
+    path = tmp_path / "holdout.json"
+    if existing is not None:
+        path.write_text(json.dumps(existing))
+    cfg = store.ProjectConfig()
+    monkeypatch.setattr(store, "HOLDOUT_PATH", path)
+    monkeypatch.setattr(store, "load_config", lambda: cfg)
+    monkeypatch.setattr(cli, "_load", lambda now: (None, None))
+    monkeypatch.setattr(cli, "_build", lambda raw, st, c: None)
+    monkeypatch.setattr(backtest, "walk_forward", lambda frame, mc, seasons: None)
+    monkeypatch.setattr(backtest, "score", lambda preds: {"n": 0})
+    return path, cfg
+
+
+def test_holdout_first_run_marks_not_previously_viewed(monkeypatch, tmp_path):
+    import json
+    path, _ = _holdout_env(monkeypatch, tmp_path)
+    cli.cmd_holdout(Namespace(force=False, now=None))
+    out = json.loads(path.read_text())
+    assert out["previously_viewed"] is False
+    assert "previous_config_fingerprint" not in out
+    assert datetime.fromisoformat(out["evaluated_at"]).utcoffset().total_seconds() == 0
+
+
+def test_holdout_force_rerun_records_previous_view(monkeypatch, tmp_path):
+    import json
+
+    from seahawks_ml.models.store import ProjectConfig
+    old = replace(ProjectConfig(), rating=replace(ProjectConfig().rating, prior_games=9.0))
+    path, cfg = _holdout_env(monkeypatch, tmp_path, existing={"seasons": [2024], "config": old.to_dict(),
+                                                              "score": {}})
+    cli.cmd_holdout(Namespace(force=True, now=None))
+    out = json.loads(path.read_text())
+    assert out["previously_viewed"] is True
+    assert out["previous_config_fingerprint"] == old.fingerprint() != cfg.fingerprint()
+    assert out["evaluated_at"]
+
+
+def test_holdout_refuses_overwrite_without_force(monkeypatch, tmp_path):
+    path, _ = _holdout_env(monkeypatch, tmp_path, existing={"config": {}})
+    with pytest.raises(SystemExit):
+        cli.cmd_holdout(Namespace(force=False, now=None))

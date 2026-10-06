@@ -545,11 +545,12 @@
 
     <div class="kpis">
       <div class="kpi">
-        <div class="k">Locked holdout</div>
+        <div class="k">Locked holdout{% if data.holdout and data.holdout.previously_viewed %} · Seen before — reference only{% endif %}</div>
         {% if data.holdout %}
         {% set hm = data.holdout.score.model.log_loss %}{% set hv = data.holdout.score.vegas.log_loss %}
         <div class="v">{{ "%.3f"|format(hm) }}</div>
         <div class="n">{{ data.holdout.seasons|join(", ") }} · Vegas {{ "%.3f"|format(hv) }} ({{ "%+.3f"|format(hm - hv) }})</div>
+        {% if data.holdout.previously_viewed %}<div class="n">Re-run after the first look, so it can no longer be a clean test. The "Live this season" card is the honest test.</div>{% endif %}
         {% else %}
         <div class="v muted">—</div><div class="n">Not yet evaluated</div>
         {% endif %}

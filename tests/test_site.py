@@ -232,3 +232,32 @@ def test_build_site_reads_sim_path_at_call_time(tmp_path, monkeypatch):
     html = build_site(datetime(2026, 10, 6, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
                       out_dir=tmp_path / "s").read_text()
     assert 'id="winsdist"' in html
+
+
+def _site_with_holdout(tmp_path, monkeypatch, holdout):
+    import json
+
+    from seahawks_ml.site import build
+    m = {"log_loss": 0.65, "log_loss_ci90": [0.6, 0.7], "brier": 0.23, "accuracy": 0.6}
+    score = {k: dict(m) for k in ("model", "elo", "home", "vegas")}
+    score["seahawks_only"] = None
+    score["per_season"] = []
+    bt, ho = tmp_path / "backtest.json", tmp_path / "holdout.json"
+    bt.write_text(json.dumps({"seasons": [2020, 2021], "score": score}))
+    ho.write_text(json.dumps({"seasons": [2024, 2025], "score": {"model": m, "vegas": m}, **holdout}))
+    monkeypatch.setattr(build, "BACKTEST_PATH", bt)
+    monkeypatch.setattr(build, "HOLDOUT_PATH", ho)
+    out = build_site(datetime(2026, 10, 10, 19, tzinfo=UTC), history_path=_history(tmp_path), out_dir=tmp_path / "site")
+    return out.read_text()
+
+
+def test_holdout_tile_flags_previously_viewed(tmp_path, monkeypatch):
+    html = _site_with_holdout(tmp_path, monkeypatch, {"previously_viewed": True})
+    assert "Seen before — reference only" in html
+    assert "Live this season" in html and "honest test" in html
+
+
+def test_holdout_tile_not_flagged_on_first_run(tmp_path, monkeypatch):
+    html = _site_with_holdout(tmp_path, monkeypatch, {"previously_viewed": False})
+    assert "Seen before" not in html
+    assert "Locked holdout" in html

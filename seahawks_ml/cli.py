@@ -124,15 +124,26 @@ def cmd_backtest(args) -> None:
 def cmd_holdout(args) -> None:
     """Local only, run once after tuning: score the locked config on 2024-2025."""
     from seahawks_ml.models.backtest import score, walk_forward, write_json
-    from seahawks_ml.models.store import HOLDOUT_PATH, load_config
+    from seahawks_ml.models.store import HOLDOUT_PATH, ProjectConfig, load_config
 
-    if HOLDOUT_PATH.exists() and not args.force:
+    previously_viewed = HOLDOUT_PATH.exists()
+    if previously_viewed and not args.force:
         raise SystemExit(f"{HOLDOUT_PATH} exists - the holdout is evaluated once. Use --force to overwrite.")
+    previous_fingerprint = None
+    if previously_viewed:
+        try:
+            previous_fingerprint = ProjectConfig.from_dict(json.loads(HOLDOUT_PATH.read_text())["config"]).fingerprint()
+        except (ValueError, KeyError, TypeError):
+            pass  # unreadable old file: still mark it as seen
     config = load_config()
     stadiums, raw = _load(_now(args))
     frame = _build(raw, stadiums, config)
     preds = walk_forward(frame, config.model, list(HOLDOUT_SEASONS))
-    write_json(HOLDOUT_PATH, {"seasons": list(HOLDOUT_SEASONS), "config": config.to_dict(), "score": score(preds)})
+    payload = {"seasons": list(HOLDOUT_SEASONS), "config": config.to_dict(), "score": score(preds),
+               "previously_viewed": previously_viewed, "evaluated_at": datetime.now(UTC).isoformat()}
+    if previously_viewed:
+        payload["previous_config_fingerprint"] = previous_fingerprint
+    write_json(HOLDOUT_PATH, payload)
     print(f"holdout written to {HOLDOUT_PATH}")
 
 
