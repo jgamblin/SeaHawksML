@@ -79,22 +79,23 @@ def aggregate_qb_games(pbp: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _cached(path: Path, fetch: Callable[[], pl.DataFrame], refresh: bool) -> pl.DataFrame:
+def _cached(
+    path: Path, fetch: Callable[[], pl.DataFrame], refresh: bool, empty_on_error: dict | None = None
+) -> pl.DataFrame:
+    """Read-through cache. With `empty_on_error` (a schema) a failed fetch yields an
+    empty table that is NOT cached; without it the exception propagates."""
     if path.exists() and not refresh:
         return pl.read_parquet(path)
-    df = fetch()
+    try:
+        df = fetch()
+    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
+        if empty_on_error is None:
+            raise
+        print(f"warning: nflverse fetch returned no data ({exc}); using empty table")
+        return pl.DataFrame(schema=empty_on_error)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(path)
     return df
-
-
-def _or_empty(fetch: Callable[[], pl.DataFrame], schema: dict) -> pl.DataFrame:
-    """nflverse raises before a season's first data exists; treat that as empty."""
-    try:
-        return fetch()
-    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
-        print(f"warning: nflverse fetch returned no data ({exc}); using empty table")
-        return pl.DataFrame(schema=schema)
 
 
 def load_schedules() -> pl.DataFrame:
@@ -113,11 +114,7 @@ def load_players() -> pl.DataFrame:
 
 
 def _fetch_pbp_tables(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
-    try:
-        pbp = nfl.load_pbp(season)
-    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
-        print(f"warning: no play-by-play for {season} yet ({exc})")
-        return pl.DataFrame(schema=TEAM_EPA_SCHEMA), pl.DataFrame(schema=QB_GAMES_SCHEMA)
+    pbp = nfl.load_pbp(season)
     return aggregate_team_epa(pbp), aggregate_qb_games(pbp)
 
 
@@ -146,26 +143,39 @@ def load_season_tables(
     parts: dict[str, list[pl.DataFrame]] = {k: [] for k in ("team_epa", "qb_games", "injuries", "snaps")}
     for season in seasons:
         refresh = season == current_season
+        tolerate = refresh  # only the current season may legitimately lack data
         team_path = cache_dir / f"team_epa_{season}.parquet"
         qb_path = cache_dir / f"qb_games_{season}.parquet"
         if refresh or not (team_path.exists() and qb_path.exists()):
-            team_epa, qb_games = _fetch_pbp_tables(season)
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            team_epa.write_parquet(team_path)
-            qb_games.write_parquet(qb_path)
-        parts["team_epa"].append(pl.read_parquet(team_path))
-        parts["qb_games"].append(pl.read_parquet(qb_path))
+            try:
+                team_epa, qb_games = _fetch_pbp_tables(season)
+            except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
+                if not tolerate:
+                    raise
+                print(f"warning: no play-by-play for {season} yet ({exc})")
+                team_epa = pl.DataFrame(schema=TEAM_EPA_SCHEMA)
+                qb_games = pl.DataFrame(schema=QB_GAMES_SCHEMA)
+            else:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                team_epa.write_parquet(team_path)
+                qb_games.write_parquet(qb_path)
+        else:
+            team_epa, qb_games = pl.read_parquet(team_path), pl.read_parquet(qb_path)
+        parts["team_epa"].append(team_epa)
+        parts["qb_games"].append(qb_games)
         if season >= FIRST_TRAIN_SEASON:
             parts["injuries"].append(_cached(
                 cache_dir / f"injuries_{season}.parquet",
-                lambda s=season: _or_empty(lambda: _fetch_injuries(s), INJURIES_SCHEMA),
+                lambda s=season: _fetch_injuries(s),
                 refresh,
+                INJURIES_SCHEMA if tolerate else None,
             ))
         if season >= FIRST_SNAP_SEASON:
             parts["snaps"].append(_cached(
                 cache_dir / f"snaps_{season}.parquet",
-                lambda s=season: _or_empty(lambda: _fetch_snaps(s), SNAPS_SCHEMA),
+                lambda s=season: _fetch_snaps(s),
                 refresh,
+                SNAPS_SCHEMA if tolerate else None,
             ))
     schemas = {"team_epa": TEAM_EPA_SCHEMA, "qb_games": QB_GAMES_SCHEMA,
                "injuries": INJURIES_SCHEMA, "snaps": SNAPS_SCHEMA}

@@ -38,3 +38,35 @@ def test_aggregate_qb_games_sums_dropbacks():
     # null-qb_epa dropback excluded; scramble (null passer_player_id) counted
     assert rows["QB-SEA"]["dropbacks"] == 3
     assert abs(rows["QB-SEA"]["qb_epa_sum"] - 2.6) < 1e-9
+
+
+def _boom(*_a, **_k):
+    raise RuntimeError("no data")
+
+
+def test_current_season_fetch_failure_returns_empty_and_is_not_cached(monkeypatch, tmp_path):
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", _boom)
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    out = nv.load_season_tables([2099], current_season=2099, cache_dir=tmp_path)
+    assert all(df.height == 0 for df in out.values())
+    assert list(tmp_path.glob("*.parquet")) == []
+
+
+def test_completed_season_fetch_failure_propagates(monkeypatch, tmp_path):
+    import pytest
+
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", _boom)
+    with pytest.raises(RuntimeError):
+        nv.load_season_tables([2099], current_season=2100, cache_dir=tmp_path)
+    assert list(tmp_path.glob("*.parquet")) == []
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", lambda s: _pbp())
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    with pytest.raises(RuntimeError):
+        nv.load_season_tables([2099], current_season=2100, cache_dir=tmp_path)
+    assert not (tmp_path / "injuries_2099.parquet").exists()
