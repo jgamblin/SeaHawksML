@@ -38,3 +38,8 @@ def test_make_margin_dist():
     assert isinstance(make_margin_dist("empirical", 2.0), EmpiricalMarginDist)
     with pytest.raises(ValueError):
         make_margin_dist("beta", 2.0)
+
+
+def test_gaussian_sigma_is_rmse_including_bias():
+    dist = GaussianMarginDist().fit(np.zeros(4), np.array([3.0, 3.0, 3.0, 3.0]))
+    assert dist.sigma == pytest.approx(3.0)  # std would give 0

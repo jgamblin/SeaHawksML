@@ -54,7 +54,8 @@ class GaussianMarginDist:
         self.sigma: float | None = None
 
     def fit(self, pred_margin: np.ndarray, actual_margin: np.ndarray) -> "GaussianMarginDist":
-        self.sigma = float(np.std(np.asarray(actual_margin, float) - np.asarray(pred_margin, float)))
+        resid = np.asarray(actual_margin, float) - np.asarray(pred_margin, float)
+        self.sigma = float(np.sqrt(np.mean(resid**2)))  # RMSE: includes any bias in the predictions
         return self
 
     def prob_win(self, m: np.ndarray) -> np.ndarray:
