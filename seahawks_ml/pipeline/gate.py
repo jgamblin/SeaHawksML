@@ -12,7 +12,7 @@ import polars as pl
 # run_type -> (opens this long before kickoff, closes this long before kickoff)
 RUN_WINDOWS = {
     "midweek": (timedelta(days=4, hours=12), timedelta(days=2)),
-    "final_injury": (timedelta(hours=30), timedelta(hours=6)),
+    "final_injury": (timedelta(hours=24), timedelta(hours=6)),
     "gameday": (timedelta(hours=4), timedelta(minutes=90)),
 }
 RESULT_GRACE = timedelta(hours=6)  # wait for the previous game's result before predicting

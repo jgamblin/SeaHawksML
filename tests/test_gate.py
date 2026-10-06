@@ -8,15 +8,19 @@ from seahawks_ml.pipeline.gate import due_run, next_game, previous_kickoff
 SUN_1PM_ET = datetime(2026, 10, 11, 17, 0, tzinfo=UTC)
 THU_820_ET = datetime(2026, 10, 16, 0, 15, tzinfo=UTC)
 LONDON_930_ET = datetime(2026, 10, 25, 13, 30, tzinfo=UTC)
+MON_815_ET = datetime(2026, 10, 20, 0, 15, tzinfo=UTC)
+SAT_430_ET = datetime(2026, 12, 19, 21, 30, tzinfo=UTC)
 
 
-@pytest.mark.parametrize("kickoff", [SUN_1PM_ET, THU_820_ET, LONDON_930_ET])
+@pytest.mark.parametrize("kickoff", [SUN_1PM_ET, THU_820_ET, LONDON_930_ET, MON_815_ET, SAT_430_ET])
 @pytest.mark.parametrize("before,expected", [
     (timedelta(days=5), None),
     (timedelta(days=4), "midweek"),
     (timedelta(days=2, hours=1), "midweek"),
     (timedelta(days=1, hours=12), None),
+    (timedelta(hours=25), None),
     (timedelta(hours=24), "final_injury"),
+    (timedelta(hours=7), "final_injury"),
     (timedelta(hours=5), None),
     (timedelta(hours=3), "gameday"),
     (timedelta(minutes=60), None),

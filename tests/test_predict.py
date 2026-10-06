@@ -65,3 +65,14 @@ def test_results_recorded_once_and_scored(tmp_path, setup):
     assert new_results(history, raw.games, ko + timedelta(days=2)) == []
     scored = scored_predictions(history)
     assert len(scored) == 1 and scored[0]["prediction"]["run_type"] == "gameday"
+
+
+def test_final_injury_flag_requires_matching_week(setup):
+    raw, frame, model = setup
+    row = _sea_upcoming(frame)
+    week = int(row["week"][0])
+    now = row["kickoff_utc"][0] - timedelta(hours=3)
+    assert make_prediction(row, model, "gameday", now, "v1", week)["is_final_injury_report"] is True
+    assert make_prediction(row, model, "gameday", now, "v1", week - 1)["is_final_injury_report"] is False
+    assert make_prediction(row, model, "gameday", now, "v1", None)["is_final_injury_report"] is False
+    assert make_prediction(row, model, "midweek", now, "v1", week)["is_final_injury_report"] is False

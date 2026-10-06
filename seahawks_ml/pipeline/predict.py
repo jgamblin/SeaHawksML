@@ -45,7 +45,7 @@ def make_prediction(
         "run_type": run_type,
         "predicted_at": now.isoformat(),
         "kickoff_utc": g["kickoff_utc"].isoformat(),
-        "is_final_injury_report": run_type in ("final_injury", "gameday"),
+        "is_final_injury_report": run_type in ("final_injury", "gameday") and injury_week == g["week"],
         "opponent": g["away_team"] if home else g["home_team"],
         "seahawks_home": home and not g["neutral"],
         "p_seahawks": round(p_home if home else 1 - p_home, 4),
