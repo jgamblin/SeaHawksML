@@ -6,9 +6,10 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from seahawks_ml.config import PREDICTIONS_PATH, SITE_DIR
+from seahawks_ml.config import LEAGUE_PATH, PREDICTIONS_PATH, SITE_DIR
 from seahawks_ml.models.store import BACKTEST_PATH, HOLDOUT_PATH, METRICS_PATH
 from seahawks_ml.pipeline.history import read_history, scored_predictions
+from seahawks_ml.pipeline.league import league_scorecard
 from seahawks_ml.site.changes import trajectory_changes
 from seahawks_ml.site.labels import FEATURE_LABELS
 
@@ -23,7 +24,7 @@ def _read_json(path: Path) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
-def build_site_data(history: list[dict], now: datetime) -> dict:
+def build_site_data(history: list[dict], now: datetime, league_log: list[dict] | None = None) -> dict:
     predictions = [r for r in history if r["type"] == "prediction"]
     results = {r["game_id"]: r for r in history if r["type"] == "result"}
     games: dict[str, dict] = {}
@@ -52,6 +53,8 @@ def build_site_data(history: list[dict], now: datetime) -> dict:
     backtest = _read_json(BACKTEST_PATH)
     if backtest:
         backtest = {k: v for k, v in backtest.items() if k != "trials"}  # keep the page small
+    league_seasons = [r["season"] for r in league_log or [] if r["type"] == "league_prediction"]
+    league = league_scorecard(league_log or [], max(league_seasons)) if league_seasons else None
     return {
         "generated_at": now.isoformat(),
         "next_game": next_game,
@@ -60,12 +63,14 @@ def build_site_data(history: list[dict], now: datetime) -> dict:
         "metrics": _read_json(METRICS_PATH),
         "backtest": backtest,
         "holdout": _read_json(HOLDOUT_PATH),
+        "league": league,
     }
 
 
-def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PATH, out_dir: Path = SITE_DIR) -> Path:
+def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PATH,
+               out_dir: Path = SITE_DIR, league_path: Path = LEAGUE_PATH) -> Path:
     now = now or datetime.now(UTC)
-    data = build_site_data(read_history(history_path), now)
+    data = build_site_data(read_history(history_path), now, read_history(league_path))
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))

@@ -103,3 +103,32 @@ def test_build_site_renders_change_notes(tmp_path):
     html = out.read_text()
     assert "What changed" in html
     assert "Final injury report for this week now included" in html
+
+
+def _league_log():
+    from tests.test_league import _pred as lp
+    from tests.test_league import _res
+    return [lp("g0", 1, .8, .7, .6), _res("g0", 7), lp("g1", 2, .4, .55, .5), _res("g1", -3),
+            lp("g2", 3, .6, .6, .6)]
+
+
+def test_site_league_scorecard(tmp_path):
+    data = build_site_data([], datetime(2026, 10, 12, tzinfo=UTC), _league_log())
+    assert data["league"]["season"] == 2026 and data["league"]["n"] == 2
+    assert build_site_data([], datetime(2026, 10, 12, tzinfo=UTC), [])["league"] is None
+
+
+def test_build_site_renders_league_card(tmp_path):
+    from seahawks_ml.pipeline.league import validate_league
+    lpath = tmp_path / "l.jsonl"
+    for r in _league_log():
+        append_record(r, lpath, validate_league)
+    html = build_site(datetime(2026, 10, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s", league_path=lpath).read_text()
+    assert "Live this season" in html and 'id="leaguechart"' in html and "never edited" in html
+
+
+def test_build_site_league_empty_state(tmp_path):
+    html = build_site(datetime(2026, 10, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s", league_path=tmp_path / "none2.jsonl").read_text()
+    assert "No completed games yet" in html and 'id="leaguechart"' not in html
