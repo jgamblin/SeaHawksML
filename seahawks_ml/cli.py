@@ -285,6 +285,9 @@ def _predict(args, changed: list[bool]) -> None:
     if league_ids:
         try:
             rows = frame.filter(pl.col("game_id").is_in(league_ids))
+            no_row = [g for g in league_ids if g not in set(rows["game_id"].to_list())]
+            if no_row:
+                print(f"league games with no feature row (retry next hour): {no_row}")
             records = make_league_predictions(rows, model, now, version)
             for rec in records:
                 append_record(rec, LEAGUE_PATH, validate_league)

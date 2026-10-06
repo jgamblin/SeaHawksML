@@ -174,6 +174,17 @@ def test_league_games_without_forecast_are_skipped(predict_env, capsys):
     assert "no forecast" in capsys.readouterr().out
 
 
+def test_league_games_without_feature_row_are_reported(predict_env, monkeypatch, capsys):
+    from seahawks_ml.features.build import build_features
+    from seahawks_ml.pipeline.history import read_history
+    env = predict_env
+    monkeypatch.setattr(cli, "_build", lambda r, st, c: build_features(r, st).filter(
+        pl.col("game_id") != "2014_06_SF_LA"))
+    cli._predict(_args(env.kick - timedelta(hours=12)), [])
+    assert "no feature row" in capsys.readouterr().out
+    assert "2014_06_SF_LA" not in {r["game_id"] for r in read_history(env.league)}
+
+
 def test_predict_league_only_when_seahawks_already_run(predict_env):
     from seahawks_ml.pipeline.history import read_history
     env, changed = predict_env, []
