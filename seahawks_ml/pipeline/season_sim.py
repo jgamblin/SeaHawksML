@@ -29,8 +29,10 @@ from seahawks_ml.pipeline.history import append_record
 N_WILD_CARDS = 3
 SIM_KEYS = {
     "as_of", "season", "team", "n_sims", "wins_mean", "wins_p10", "wins_p50", "wins_p90", "win_dist",
-    "p_playoffs", "p_division", "p_top_seed", "record_now", "model_version",
+    "p_playoffs", "p_division", "p_top_seed", "record_now", "model_version", "sim_day",
 }
+OPTIONAL_KEYS = {"sim_day"}  # absent from snapshots logged before the field existed
+SIM_DAY_OFFSET_HOURS = 10  # a sim day starts at 10:00 UTC, after every US night game has ended
 
 
 def _pct(points: np.ndarray, games: np.ndarray) -> np.ndarray:
@@ -147,6 +149,7 @@ def simulate_season(games: pl.DataFrame, p_home_by_game: dict[str, float], teams
     record = f"{int((own > 0).sum())}-{int((own < 0).sum())}-{int((own == 0).sum())}"
     return {
         "as_of": (now or datetime.now(UTC)).isoformat(),
+        "sim_day": sim_day(now or datetime.now(UTC)).isoformat(),
         "season": season,
         "team": team,
         "n_sims": n_sims,
@@ -206,25 +209,32 @@ def _prob(x) -> bool:
 
 
 def validate_sim(record: dict) -> None:
-    if set(record) != SIM_KEYS:
-        raise ValueError(f"record keys mismatch: missing {SIM_KEYS - set(record)}, extra {set(record) - SIM_KEYS}")
+    keys = set(record)
+    if not (SIM_KEYS - OPTIONAL_KEYS) <= keys <= SIM_KEYS:
+        raise ValueError(f"record keys mismatch: missing {SIM_KEYS - OPTIONAL_KEYS - keys}, extra {keys - SIM_KEYS}")
     for k in ("p_playoffs", "p_division", "p_top_seed"):
         if not _prob(record[k]):
             raise ValueError(f"{k} must be in [0, 1], got {record[k]!r}")
     datetime.fromisoformat(record["as_of"])
 
 
-def _utc_date(iso: str):
-    return datetime.fromisoformat(iso).astimezone(UTC).date()
+def sim_day(now: datetime):
+    """The simulation day `now` belongs to: UTC date after shifting back SIM_DAY_OFFSET_HOURS."""
+    return (now.astimezone(UTC) - timedelta(hours=SIM_DAY_OFFSET_HOURS)).date()
+
+
+def snapshot_day(record: dict) -> str:
+    """ISO sim day of a snapshot; derived from as_of for snapshots logged without one."""
+    return record.get("sim_day") or sim_day(datetime.fromisoformat(record["as_of"])).isoformat()
 
 
 def has_snapshot_for(log: list[dict], now: datetime) -> bool:
-    day = now.astimezone(UTC).date()
-    return any(_utc_date(r["as_of"]) == day for r in log)
+    day = sim_day(now).isoformat()
+    return any(snapshot_day(r) == day for r in log)
 
 
 def append_snapshot(record: dict, path: Path = SEASON_SIM_PATH) -> bool:
-    """Append unless a snapshot for the same UTC date is already logged. Returns True if appended."""
+    """Append unless a snapshot for the same sim day is already logged. Returns True if appended."""
     from seahawks_ml.pipeline.history import read_history
 
     validate_sim(record)

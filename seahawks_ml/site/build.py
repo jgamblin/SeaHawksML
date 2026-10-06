@@ -10,6 +10,7 @@ from seahawks_ml.config import LEAGUE_PATH, PREDICTIONS_PATH, SEASON_SIM_PATH, S
 from seahawks_ml.models.store import BACKTEST_PATH, HOLDOUT_PATH, METRICS_PATH
 from seahawks_ml.pipeline.history import read_history, scored_predictions
 from seahawks_ml.pipeline.league import league_scorecard
+from seahawks_ml.pipeline.season_sim import snapshot_day
 from seahawks_ml.site.changes import trajectory_changes
 from seahawks_ml.site.labels import FEATURE_LABELS
 
@@ -31,7 +32,7 @@ def season_outlook(sim_log: list[dict]) -> dict | None:
     season = max(r["season"] for r in sim_log)
     snaps = sorted((r for r in sim_log if r["season"] == season), key=lambda r: _ts(r["as_of"]))
     return {"latest": snaps[-1],
-            "series": [{"date": r["as_of"][:10], "p_playoffs": r["p_playoffs"]} for r in snaps]}
+            "series": [{"date": snapshot_day(r), "p_playoffs": r["p_playoffs"]} for r in snaps]}
 
 
 def seahawks_schedule(games, now: datetime, team: str = "SEA") -> list[dict]:

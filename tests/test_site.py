@@ -184,9 +184,9 @@ def test_league_card_shows_dash_for_missing_metrics(tmp_path):
 
 def _sim_log():
     from tests.test_cli import _sim_snapshot
-    old = {**_sim_snapshot(datetime(2025, 12, 1, tzinfo=UTC)), "season": 2025, "p_playoffs": 0.9}
-    a = {**_sim_snapshot(datetime(2026, 10, 5, 0, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.41}
-    b = {**_sim_snapshot(datetime(2026, 10, 6, 0, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.47,
+    old = {**_sim_snapshot(datetime(2025, 12, 1, 12, tzinfo=UTC)), "season": 2025, "p_playoffs": 0.9}
+    a = {**_sim_snapshot(datetime(2026, 10, 5, 10, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.41}
+    b = {**_sim_snapshot(datetime(2026, 10, 6, 10, 17, tzinfo=UTC)), "season": 2026, "p_playoffs": 0.47,
          "wins_mean": 9.4, "wins_p10": 7.0, "wins_p90": 12.0, "p_division": 0.18, "p_top_seed": 0.004,
          "record_now": "3-2-0", "win_dist": [{"wins": w, "prob": p} for w, p in [(7, .2), (9, .5), (12, .3)]]}
     return [old, b, a]
@@ -312,3 +312,10 @@ def test_seahawks_schedule_from_games_frame():
     assert sched[0]["seahawks_home"] is True and sched[0]["seahawks_score"] == 10
     assert sched[1]["seahawks_home"] is False and sched[1]["seahawks_score"] == 24 and sched[1]["opponent"] == "SF"
     assert sched[2]["seahawks_home"] is False and sched[2]["seahawks_score"] is None
+
+
+def test_season_outlook_series_uses_sim_day():
+    from tests.test_cli import _sim_snapshot
+    log = [_sim_snapshot(datetime(2026, 10, 6, 3, 0, tzinfo=UTC))]  # before 10:00 UTC: still Oct 5's sim day
+    assert build_site_data([], datetime(2026, 10, 6, 12, tzinfo=UTC), sim_log=log)["season_sim"]["series"][0][
+        "date"] == "2026-10-05"

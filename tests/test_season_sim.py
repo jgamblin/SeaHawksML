@@ -9,6 +9,7 @@ from seahawks_ml.pipeline.season_sim import (
     append_snapshot,
     has_snapshot_for,
     season_in_progress,
+    sim_day,
     simulate_season,
     validate_sim,
 )
@@ -201,3 +202,21 @@ def test_remaining_game_probs_uses_model_with_elo_fallback():
     assert all(probs[g] == 0.6 for g in unplayed if g != broken)
     assert 0 < probs[broken] < 1 and probs[broken] != 0.6
     assert remaining_game_probs(frame, Fake(), 2013) == {}
+
+
+def test_sim_day_starts_at_ten_utc():
+    assert sim_day(datetime(2026, 10, 6, 9, 59, tzinfo=UTC)).isoformat() == "2026-10-05"
+    assert sim_day(datetime(2026, 10, 6, 10, 0, tzinfo=UTC)).isoformat() == "2026-10-06"
+    assert sim_day(datetime(2026, 10, 6, 23, 59, tzinfo=UTC)).isoformat() == "2026-10-06"
+
+
+def test_snapshots_dedupe_by_sim_day_and_derive_for_old_records(tmp_path):
+    rec = {**_sim([("SEA", "SF", 3)]), "model_version": "v1"}
+    assert rec["sim_day"] == "2026-10-06"
+    path = tmp_path / "s.jsonl"
+    late = datetime(2026, 10, 7, 3, tzinfo=UTC)  # Monday-night window: still sim day Oct 6
+    assert append_snapshot(rec, path) is True
+    assert append_snapshot({**rec, "as_of": late.isoformat(), "sim_day": sim_day(late).isoformat()}, path) is False
+    old = {k: v for k, v in rec.items() if k != "sim_day"}  # logged before the field existed
+    validate_sim(old)
+    assert has_snapshot_for([old], late) and not has_snapshot_for([old], late + timedelta(hours=8))
