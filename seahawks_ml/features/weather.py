@@ -14,17 +14,32 @@ INDOOR_VALUES = {"temp_f": 70.0, "wind_mph": 0.0, "precip_in": 0.0}
 def compute_weather(games: pl.DataFrame, weather: pl.DataFrame) -> pl.DataFrame:
     """weather_source is one of indoor / archive / forecast / climatology."""
     by_hour = {(r["stadium_id"], r["time_utc"]): r for r in weather.iter_rows(named=True)}
-    clim: dict[tuple[str, int], list[list[float]]] = defaultdict(lambda: [[], [], []])
-    league_clim: dict[int, list[list[float]]] = defaultdict(lambda: [[], [], []])
-    for r in weather.filter(pl.col("source") == "archive").iter_rows(named=True):
-        for i, c in enumerate(("temp_f", "wind_mph", "precip_in")):
-            if r[c] is not None:
-                clim[(r["stadium_id"], r["time_utc"].month)][i].append(r[c])
-                league_clim[r["time_utc"].month][i].append(r[c])
+    # Archive observations by (stadium, month) and by month league-wide, time-sorted so a
+    # game's climatology only ever sees hours strictly before its own kickoff.
+    clim: dict[tuple[str, int], list[tuple]] = defaultdict(list)
+    league_clim: dict[int, list[tuple]] = defaultdict(list)
+    archive = weather.filter(pl.col("source") == "archive").sort("time_utc")
+    for r in archive.iter_rows(named=True):
+        obs = (r["time_utc"], r["temp_f"], r["wind_mph"], r["precip_in"])
+        clim[(r["stadium_id"], r["time_utc"].month)].append(obs)
+        league_clim[r["time_utc"].month].append(obs)
 
-    def climatology(stadium_id: str, month: int) -> dict:
-        vals = clim.get((stadium_id, month)) or league_clim.get(month)
-        if not vals or not vals[0]:
+    def _means(obs: list[tuple], before) -> list[list[float]]:
+        vals: list[list[float]] = [[], [], []]
+        for o in obs:
+            if o[0] >= before:
+                break
+            for i in range(3):
+                if o[i + 1] is not None:
+                    vals[i].append(o[i + 1])
+        return vals
+
+    def climatology(stadium_id: str, kickoff) -> dict:
+        month = kickoff.month
+        vals = _means(clim.get((stadium_id, month), []), kickoff)
+        if not vals[0]:
+            vals = _means(league_clim.get(month, []), kickoff)
+        if not vals[0]:
             return dict(INDOOR_VALUES)
         temp, wind, precip = (sum(v) / len(v) if v else 0.0 for v in vals)
         return {"temp_f": temp, "wind_mph": wind, "precip_in": precip * GAME_WINDOW_HOURS}
@@ -46,7 +61,7 @@ def compute_weather(games: pl.DataFrame, weather: pl.DataFrame) -> pl.DataFrame:
             }
             source = hours[0]["source"]
         else:
-            vals, source = climatology(g["stadium_id"], g["kickoff_utc"].month), "climatology"
+            vals, source = climatology(g["stadium_id"], g["kickoff_utc"]), "climatology"
         rows.append(base | vals | {"is_indoor": 0, "weather_source": source})
     return pl.DataFrame(rows, schema={"game_id": pl.Utf8, "temp_f": pl.Float64, "wind_mph": pl.Float64,
                                       "precip_in": pl.Float64, "is_indoor": pl.Int64,
