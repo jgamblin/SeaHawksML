@@ -38,7 +38,25 @@ afterwards so CI never has to repeat it.
 Dashboard: the Seahawks-themed page is built to `public/index.html`
 (`uv run python -m seahawks_ml.cli build-site`).
 
+The dashboard's factor list excludes home-field because it sits in the model baseline.
+
 Manual run: `uv run python -m seahawks_ml.cli predict --run-type midweek`
+
+## First-time GitHub setup
+
+1. Settings -> Pages -> Source = "GitHub Actions".
+2. The `github-pages` environment (Settings -> Environments) must allow deployments from `main`.
+3. Settings -> Actions -> General -> Workflow permissions = "Read and write".
+4. Publish once: `gh workflow run predict.yml -f publish_only=true`
+
+Site or metrics changes pushed to `main` also republish automatically.
+
+## Offseason
+
+GitHub disables scheduled workflows after 60 days without repo activity. In late August,
+re-enable Predict and Retrain in the Actions tab (or `gh workflow enable predict.yml` and
+`gh workflow enable retrain.yml`), then run `uv run python -m seahawks_ml.cli retrain`
+(or the Retrain workflow).
 
 Data: [nflverse](https://github.com/nflverse), weather by [Open-Meteo](https://open-meteo.com/).
 An analytical model, not betting advice.
