@@ -30,14 +30,17 @@ RATING_GRID = [
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
 # Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 7 extra builds):
-# groups; values with other skill-player shrinkage/scale; values with flat (draft capital and durability
-# ignored) and wider-spread lineman weights.
+# the pooled home-minus-away modes (counts, and quality-weighted values with a few skill-player
+# shrinkage/scale settings and with flat linemen), plus the per-group modes for reference.
+_FLAT_LINEMEN = {"round_1": 1.0, "day_2": 1.0, "later": 1.0, "udfa": 1.0}
 AVAILABILITY_GRID = [
+    {"mode": "count_diff"},
+    {"mode": "values_pooled", "prior_opps": 90.0, "quality_scale": 2.0},
+    {"mode": "values_pooled", "prior_opps": 90.0, "quality_scale": 6.0},
+    {"mode": "values_pooled", "prior_opps": 30.0, "quality_scale": 4.0},
+    {"mode": "values_pooled", "lineman_quality": _FLAT_LINEMEN, "durability_weight": 0.0},
     {"mode": "groups"},
-    *[{"mode": "values", "prior_opps": k, "quality_scale": scale} for k in (30.0, 90.0) for scale in (2.0, 6.0)],
-    {"mode": "values", "lineman_quality": {"round_1": 1.0, "day_2": 1.0, "later": 1.0, "udfa": 1.0},
-     "durability_weight": 0.0},
-    {"mode": "values", "lineman_quality": {"round_1": 1.5, "day_2": 1.2, "later": 1.0, "udfa": 0.8}},
+    {"mode": "values", "prior_opps": 90.0, "quality_scale": 2.0},
 ]
 FORECAST_HORIZON = timedelta(days=16)
 
@@ -121,7 +124,7 @@ def cmd_backtest(args) -> None:
             if ll < best[1]:
                 best = (cand, ll)
         config = best[0]
-        print("stage 0c: injury availability (starters out / position groups / player values)")
+        print("stage 0c: injury availability (starters out / pooled diffs / position groups / player values)")
         print(f"  {best[1]:.5f}  {config.availability}")
         feature_trials.append({"stage": "availability", "availability": config.availability.to_dict(),
                                "log_loss": best[1]})
