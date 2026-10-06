@@ -47,7 +47,7 @@ jobs:
           RUN_TYPE: ${{ inputs.run_type }}
         run: uv run python -m seahawks_ml.cli predict ${RUN_TYPE:+--run-type "$RUN_TYPE"}
       - name: Commit prediction log and data cache
-        if: steps.predict.outputs.changed == 'true'
+        if: ${{ !cancelled() && steps.predict.outputs.changed == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

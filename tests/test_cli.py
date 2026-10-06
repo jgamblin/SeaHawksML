@@ -1,4 +1,5 @@
 from argparse import Namespace
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import polars as pl
@@ -64,6 +65,11 @@ def predict_env(monkeypatch, tmp_path):
     from tests.synthetic import make_raw
 
     raw = make_raw(seasons=(2009, 2010, 2011, 2012, 2013, 2014), unplayed_last_week=True)
+    # one outdoor league game in week 6 (the other two are indoors) so forecast handling is exercised
+    raw = replace(raw, games=raw.games.with_columns(
+        pl.when(pl.col("game_id") == "2014_06_SF_LA").then(pl.lit("outdoors")).otherwise(pl.col("roof")).alias("roof"),
+        pl.when(pl.col("game_id") == "2014_06_SF_LA").then(pl.lit("SFO01")).otherwise(pl.col("stadium_id"))
+        .alias("stadium_id")))
     stadiums = load_stadiums()
     frame = build_features(raw, stadiums)
     model = fit_model(frame, ModelConfig(inner_folds=3), [2009, 2010, 2011, 2012, 2013])
@@ -73,9 +79,18 @@ def predict_env(monkeypatch, tmp_path):
     env.week6 = raw.games.filter((pl.col("season") == 2014) & (pl.col("week") == 6))
     env.kick = env.week6["kickoff_utc"][0]
 
+    env.forecast_hook = None  # tests may set a callable(games) run before the forecast is returned
+    env.forecast_empty = False
+
     def fake_forecast(games, st, client=None):
         env.forecast_calls.append(set(games["game_id"].to_list()))
-        return pl.DataFrame(schema=weather.WEATHER_SCHEMA)
+        if env.forecast_hook:
+            env.forecast_hook(games)
+        if env.forecast_empty:
+            return pl.DataFrame(schema=weather.WEATHER_SCHEMA)
+        hours = weather.game_hours(games)
+        return hours.with_columns(pl.lit(60.0).alias("temp_f"), pl.lit(5.0).alias("wind_mph"),
+                                  pl.lit(0.0).alias("precip_in"), pl.lit("forecast").alias("source"))
 
     def fake_load(now, games=None):
         env.loads.append(now)
@@ -111,6 +126,52 @@ def test_predict_logs_seahawks_and_league(predict_env):
     assert sorted(r["game_id"] for r in league) == sorted(env.week6["game_id"].to_list())
     assert env.forecast_calls == [set(env.week6["game_id"].to_list())]
     assert len(env.loads) == 1
+
+
+def test_league_failure_keeps_seahawks_record(predict_env, monkeypatch, capsys):
+    from seahawks_ml.pipeline import league
+    from seahawks_ml.pipeline.history import read_history
+
+    def boom(*a, **k):
+        raise RuntimeError("league exploded")
+
+    monkeypatch.setattr(league, "make_league_predictions", boom)
+    env, changed = predict_env, []
+    cli._predict(_args(env.kick - timedelta(hours=12)), changed)  # must not raise
+    assert changed
+    assert [r["run_type"] for r in read_history(env.hist)] == ["final_injury"]
+    assert read_history(env.league) == []
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "league exploded" in out
+
+
+def test_forecast_failure_retries_seahawks_alone(predict_env):
+    from seahawks_ml.pipeline.history import read_history
+    env, changed = predict_env, []
+
+    def fail_if_combined(games):
+        if games.height > 1:
+            raise RuntimeError("forecast api down")
+
+    env.forecast_hook = fail_if_combined
+    cli._predict(_args(env.kick - timedelta(hours=12)), changed)
+    assert [r["run_type"] for r in read_history(env.hist)] == ["final_injury"]
+    assert len(env.forecast_calls) == 2 and len(env.forecast_calls[1]) == 1
+    # league games have no forecast this hour: outdoor ones are skipped, to retry next hour
+    outdoor = set(env.week6.filter(~pl.col("roof").is_in(["dome", "closed"]))["game_id"].to_list())
+    logged = {r["game_id"] for r in read_history(env.league)}
+    assert outdoor and not (logged & outdoor)
+
+
+def test_league_games_without_forecast_are_skipped(predict_env, capsys):
+    from seahawks_ml.pipeline.history import read_history
+    env = predict_env
+    env.forecast_empty = True
+    cli._predict(_args(env.kick - timedelta(hours=12)), [])
+    outdoor = set(env.week6.filter(~pl.col("roof").is_in(["dome", "closed"]))["game_id"].to_list())
+    logged = {r["game_id"] for r in read_history(env.league)}
+    assert outdoor and not (logged & outdoor)
+    assert "no forecast" in capsys.readouterr().out
 
 
 def test_predict_league_only_when_seahawks_already_run(predict_env):

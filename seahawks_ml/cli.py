@@ -153,6 +153,42 @@ def cmd_retrain(args) -> None:
     print(f"trained {meta['model_version']} on {meta['n_games']} games")
 
 
+def _warn_league(what: str) -> None:
+    """Report a league-step failure without aborting the run (the Seahawks record is already kept)."""
+    import traceback
+
+    print(f"WARNING: league {what} failed; Seahawks prediction is unaffected. Will retry next hour.")
+    print("".join(traceback.format_exc(limit=-3)).rstrip())
+
+
+def _fetch_forecast(targets: pl.DataFrame, stadiums, seahawks_id: str | None) -> pl.DataFrame:
+    """Forecast for the target games; if the combined fetch fails, retry for the Seahawks game alone
+    (league games then have no forecast this hour and are skipped by the caller)."""
+    from seahawks_ml.ingest.weather import WEATHER_SCHEMA, forecast_for_games
+
+    try:
+        return forecast_for_games(targets, stadiums)
+    except Exception as exc:
+        print(f"WARNING: forecast fetch failed ({type(exc).__name__}: {exc})")
+        if seahawks_id is None:
+            return pl.DataFrame(schema=WEATHER_SCHEMA)
+        print(f"retrying forecast for {seahawks_id} alone")
+        return forecast_for_games(targets.filter(pl.col("game_id") == seahawks_id), stadiums)
+
+
+def _without_forecast(games: pl.DataFrame, weather: pl.DataFrame) -> set[str]:
+    """Outdoor games with any game-window hour lacking weather data."""
+    from seahawks_ml.ingest.weather import game_hours
+
+    have = weather.filter(pl.col("temp_f").is_not_null()).select("stadium_id", "time_utc")
+    missing = set()
+    for g in games.filter(~pl.col("roof").is_in(["dome", "closed"])).iter_rows(named=True):
+        hours = game_hours(games.filter(pl.col("game_id") == g["game_id"]))
+        if hours.join(have, on=["stadium_id", "time_utc"], how="anti").height:
+            missing.add(g["game_id"])
+    return missing
+
+
 def cmd_predict(args) -> None:
     """CI: if a run is due for the next Seahawks game, predict and log it."""
     changed: list[bool] = []  # non-empty once anything was appended to the history
@@ -165,7 +201,6 @@ def cmd_predict(args) -> None:
 def _predict(args, changed: list[bool]) -> None:
     from seahawks_ml.features.base import prepare_games
     from seahawks_ml.ingest import nflverse
-    from seahawks_ml.ingest.weather import forecast_for_games
     from seahawks_ml.models.store import METRICS_PATH, check_model_matches, load_config, load_model
     from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
     from seahawks_ml.pipeline.history import append_record, read_history, runs_done
@@ -190,10 +225,13 @@ def _predict(args, changed: list[bool]) -> None:
         changed.append(True)
         print(f"result recorded: {rec['game_id']} {rec['margin_seahawks']:+d}")
     history = read_history(PREDICTIONS_PATH)
-    for rec in new_league_results(league_log, games, now):
-        append_record(rec, LEAGUE_PATH, validate_league)
-        changed.append(True)
-        print(f"league result recorded: {rec['game_id']} {rec['margin_home']:+d}")
+    try:
+        for rec in new_league_results(league_log, games, now):
+            append_record(rec, LEAGUE_PATH, validate_league)
+            changed.append(True)
+            print(f"league result recorded: {rec['game_id']} {rec['margin_home']:+d}")
+    except Exception:
+        _warn_league("result recording")
     league_log = read_history(LEAGUE_PATH)
 
     game = next_game(games, TEAM, now)
@@ -224,8 +262,13 @@ def _predict(args, changed: list[bool]) -> None:
     target_ids = list(league_ids) + ([game["game_id"]] if run_type else [])
     targets = raw.games.filter(pl.col("game_id").is_in(target_ids) & (pl.col("kickoff_utc") - now <= FORECAST_HORIZON))
     if targets.height:
-        forecast = forecast_for_games(targets, stadiums)
+        forecast = _fetch_forecast(targets, stadiums, game["game_id"] if run_type else None)
         raw = replace(raw, weather=pl.concat([raw.weather, forecast]).unique(["stadium_id", "time_utc"], keep="last"))
+    if league_ids:
+        no_forecast = _without_forecast(raw.games.filter(pl.col("game_id").is_in(league_ids)), raw.weather)
+        if no_forecast:
+            print(f"no forecast yet for league games {sorted(no_forecast)}; skipping them this hour (retry next hour)")
+            league_ids = [g for g in league_ids if g not in no_forecast]
     frame = _build(raw, stadiums, config)
     model = load_model()
     metrics = json.loads(METRICS_PATH.read_text())
@@ -240,11 +283,15 @@ def _predict(args, changed: list[bool]) -> None:
         changed.append(True)
         print(f"SEA win probability {record['p_seahawks']:.1%}, margin {record['margin_seahawks']:+.1f}")
     if league_ids:
-        records = make_league_predictions(frame.filter(pl.col("game_id").is_in(league_ids)), model, now, version)
-        for rec in records:
-            append_record(rec, LEAGUE_PATH, validate_league)
-            changed.append(True)
-        print(f"logged {len(records)} league predictions")
+        try:
+            rows = frame.filter(pl.col("game_id").is_in(league_ids))
+            records = make_league_predictions(rows, model, now, version)
+            for rec in records:
+                append_record(rec, LEAGUE_PATH, validate_league)
+                changed.append(True)
+            print(f"logged {len(records)} league predictions")
+        except Exception:
+            _warn_league("predictions")
 
 
 def cmd_build_site(args) -> None:
