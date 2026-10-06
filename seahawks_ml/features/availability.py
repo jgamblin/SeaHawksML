@@ -11,10 +11,13 @@ Outputs per team (home_/away_ prefix):
 - `out_<group>` for the six position groups (ol, wrte, rb, dl, lb, db): the same weight
   per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In mode
   "values" each missing starter's weight is snap share x quality:
-  - WR/TE, RB: 1 + quality_scale x (shrunk EPA/opportunity - replacement), floored at 0.
-    EPA per target + carry over the player's games before kickoff in the game's season and
-    the one before, shrunk toward replacement with `prior_opps` opportunities. Replacement
-    is the group's mean EPA/opportunity over all seasons before the game's season.
+  - WR/TE, RB: 1 + quality_scale x (shrunk EPA/opportunity - base), floored at 0. Receiving
+    (EPA per target) and rushing (EPA per carry) are kept apart: over the player's games before
+    kickoff in the game's season and the one before he has t targets and c carries, and
+    base = (t x repl_rec + c x repl_rush) / (t + c), his own opportunity mix (the group's
+    average mix when he has no history). shrunk = (k x base + receiving EPA + rushing EPA) /
+    (k + t + c) with k = `prior_opps`. repl_rec / repl_rush are the group's mean EPA per
+    target / per carry over all seasons before the game's season.
   - OL, DL, LB, DB: lineman_quality[draft bucket] x (1 - w + w x durability), where
     durability is the player's mean share of the team's snaps over its previous 8 games
     (0 for games he missed) and w is `durability_weight`. Draft round is known at draft
@@ -92,57 +95,67 @@ def draft_bucket(draft_round: int | None) -> str:
 
 
 class _SkillHistory:
-    """Per-player EPA/opportunity history indexed for leak-free lookups by kickoff."""
+    """Per-player receiving/rushing history indexed for leak-free lookups by kickoff.
+
+    Receiving (targets, receiving EPA) and rushing (carries, rushing EPA) are kept apart so a
+    player is measured against baselines in his own opportunity mix.
+    """
 
     def __init__(self, player_stats: pl.DataFrame | None, kickoff: dict):
         rows: dict[str, list[tuple]] = defaultdict(list)
-        season_totals: dict[str, dict[int, list[float]]] = {g: defaultdict(lambda: [0.0, 0.0])
+        # group -> season -> [receiving EPA, targets, rushing EPA, carries]
+        season_totals: dict[str, dict[int, list[float]]] = {g: defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
                                                             for g in SKILL_STAT_GROUPS}
         if player_stats is not None:
             for r in player_stats.iter_rows(named=True):
                 ko = kickoff.get(r["game_id"])
-                opps = (r["targets"] or 0) + (r["carries"] or 0)
-                if ko is None or opps <= 0:
+                t, c = r["targets"] or 0, r["carries"] or 0
+                if ko is None or t + c <= 0:
                     continue
-                epa = (r["receiving_epa"] or 0.0) + (r["rushing_epa"] or 0.0)
-                rows[r["player_id"]].append((ko, r["season"], opps, epa))
+                e_rec, e_rush = r["receiving_epa"] or 0.0, r["rushing_epa"] or 0.0
+                rows[r["player_id"]].append((ko, r["season"], (e_rec, t, e_rush, c)))
                 for g, stat_groups in SKILL_STAT_GROUPS.items():
                     if r["position_group"] in stat_groups:
-                        season_totals[g][r["season"]][0] += epa
-                        season_totals[g][r["season"]][1] += opps
+                        tot = season_totals[g][r["season"]]
+                        for i, v in enumerate((e_rec, t, e_rush, c)):
+                            tot[i] += v
         self._season_totals = season_totals
-        self._index: dict[str, tuple[list, list, list[float], list[float]]] = {}
+        self._index: dict[str, tuple[list, list, list[tuple]]] = {}
         for pid, hist in rows.items():
             hist.sort(key=lambda h: h[0])
-            cum_opps, cum_epa = [0.0], [0.0]
-            for _, _, o, e in hist:
-                cum_opps.append(cum_opps[-1] + o)
-                cum_epa.append(cum_epa[-1] + e)
-            self._index[pid] = ([h[0] for h in hist], [h[1] for h in hist], cum_opps, cum_epa)
-        self._replacement: dict[tuple[str, int], float] = {}
+            cum = [(0.0, 0.0, 0.0, 0.0)]
+            for _, _, vals in hist:
+                cum.append(tuple(a + b for a, b in zip(cum[-1], vals)))
+            self._index[pid] = ([h[0] for h in hist], [h[1] for h in hist], cum)
+        self._baseline: dict[tuple[str, int], tuple[float, float, float]] = {}
 
-    def replacement(self, group: str, season: int) -> float:
+    def baseline(self, group: str, season: int) -> tuple[float, float, float]:
+        """(receiving EPA/target, rushing EPA/carry, targets share of opportunities) for the group
+        over all seasons before `season`."""
         key = (group, season)
-        if key not in self._replacement:
-            epa = opps = 0.0
-            for s, (e, o) in self._season_totals[group].items():
+        if key not in self._baseline:
+            e_rec = t = e_rush = c = 0.0
+            for s, tot in self._season_totals[group].items():
                 if s < season:
-                    epa += e
-                    opps += o
-            self._replacement[key] = epa / opps if opps else REPLACEMENT_FALLBACK
-        return self._replacement[key]
+                    e_rec, t, e_rush, c = e_rec + tot[0], t + tot[1], e_rush + tot[2], c + tot[3]
+            self._baseline[key] = (e_rec / t if t else REPLACEMENT_FALLBACK,
+                                   e_rush / c if c else REPLACEMENT_FALLBACK,
+                                   t / (t + c) if t + c else 0.5)
+        return self._baseline[key]
 
     def quality(self, player: str, group: str, season: int, ko, params: AvailabilityParams) -> float:
-        repl = self.replacement(group, season)
-        opps = epa = 0.0
+        repl_rec, repl_rush, group_mix = self.baseline(group, season)
+        e_rec = t = e_rush = c = 0.0
         if player in self._index:
-            kos, seasons, cum_opps, cum_epa = self._index[player]
+            kos, seasons, cum = self._index[player]
             hi = bisect_left(kos, ko)
             lo = min(bisect_left(seasons, season - SKILL_WINDOW_SEASONS + 1), hi)
-            opps, epa = cum_opps[hi] - cum_opps[lo], cum_epa[hi] - cum_epa[lo]
+            e_rec, t, e_rush, c = (a - b for a, b in zip(cum[hi], cum[lo]))
+        mix = t / (t + c) if t + c else group_mix  # no history: the group's average mix
+        base = mix * repl_rec + (1 - mix) * repl_rush
         k = params.prior_opps
-        shrunk = (k * repl + epa) / (k + opps) if k + opps > 0 else repl
-        return max(0.0, 1.0 + params.quality_scale * (shrunk - repl))
+        shrunk = (k * base + e_rec + e_rush) / (k + t + c) if k + t + c > 0 else base
+        return max(0.0, 1.0 + params.quality_scale * (shrunk - base))
 
 
 def compute_availability(

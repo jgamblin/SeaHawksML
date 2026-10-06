@@ -138,19 +138,26 @@ def test_group_columns_null_when_availability_unknown():
     assert (late["home_off_out"].is_null() == late["home_out_wrte"].is_null()).all()
 
 
-def _expected_skill_quality(raw, player: str, group_stats: set[str], params: AvailabilityParams) -> float:
-    """Independent re-derivation of the skill-player quality for the week-5 2014 game."""
+def _expected_skill_quality(raw, player: str, group_stats: set[str], params: AvailabilityParams,
+                            player_stats: pl.DataFrame | None = None) -> float:
+    """Independent re-derivation of the skill-player quality for the week-5 2014 game.
+
+    Receiving and rushing are kept apart; the baseline uses the player's own targets/carries mix.
+    """
     game = _week5_game(raw)
-    ps = raw.player_stats.join(raw.games.select("game_id", "kickoff_utc"), on="game_id").with_columns(
-        (pl.col("targets") + pl.col("carries")).alias("opps"),
-        (pl.col("receiving_epa").fill_null(0.0) + pl.col("rushing_epa").fill_null(0.0)).alias("epa"))
+    stats = raw.player_stats if player_stats is None else player_stats
+    ps = stats.join(raw.games.select("game_id", "kickoff_utc"), on="game_id").with_columns(
+        pl.col("receiving_epa").fill_null(0.0), pl.col("rushing_epa").fill_null(0.0))
     before = ps.filter(pl.col("season") < 2014, pl.col("position_group").is_in(list(group_stats)))
-    repl = before["epa"].sum() / before["opps"].sum()
+    ratio = lambda epa, n: before[epa].sum() / before[n].sum() if before[n].sum() else 0.0  # noqa: E731
+    repl_rec, repl_rush = ratio("receiving_epa", "targets"), ratio("rushing_epa", "carries")
     own = ps.filter(pl.col("player_id") == player, pl.col("season") >= 2013,
                     pl.col("kickoff_utc") < game["kickoff_utc"])
+    t, c = own["targets"].sum(), own["carries"].sum()
+    base = (t * repl_rec + c * repl_rush) / (t + c)
     k = params.prior_opps
-    shrunk = (k * repl + own["epa"].sum()) / (k + own["opps"].sum())
-    return max(0.0, 1 + params.quality_scale * (shrunk - repl))
+    shrunk = (k * base + own["receiving_epa"].sum() + own["rushing_epa"].sum()) / (k + t + c)
+    return max(0.0, 1 + params.quality_scale * (shrunk - base))
 
 
 @pytest.mark.parametrize("player,group,stats", [(0, "wrte", {"WR", "TE"}), (4, "rb", {"RB"})])
@@ -163,6 +170,22 @@ def test_values_mode_weights_skill_players_by_shrunk_epa(player, group, stats):
     assert quality != pytest.approx(1.0)
     assert row[f"home_out_{group}"] == pytest.approx(0.9 * quality)
     assert row["home_off_out"] == pytest.approx(0.9)  # old column stays a plain snap share
+
+
+def test_values_skill_baseline_uses_players_own_receiving_rushing_mix():
+    """An RB who also catches passes is measured against receiving and rushing baselines in his own mix,
+    not against one pooled EPA/opportunity (receiving EPA/target runs far above rushing EPA/carry)."""
+    raw = make_raw()
+    game = _week5_game(raw)
+    target = f"{game['home_team']}-P4"
+    is_target = pl.col("player_id") == target
+    stats = raw.player_stats.with_columns(
+        pl.when(is_target).then(4).otherwise(pl.col("targets")).alias("targets"),
+        pl.when(is_target).then(8.0).otherwise(pl.col("receiving_epa")).alias("receiving_epa"))
+    params = AvailabilityParams(mode="values", prior_opps=30.0, quality_scale=6.0)
+    row = _row(raw, _home_injuries(game, {4: "Out"}), params, player_stats=stats)
+    quality = _expected_skill_quality(raw, target, {"RB"}, params, player_stats=stats)
+    assert row["home_out_rb"] == pytest.approx(0.9 * quality)
 
 
 def test_values_quality_is_floored_at_zero():
