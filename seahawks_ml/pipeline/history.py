@@ -1,6 +1,7 @@
 """Append-only prediction log (predictions/history.jsonl). Records are never rewritten."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from seahawks_ml.config import PREDICTIONS_PATH
@@ -41,13 +42,17 @@ def runs_done(history: list[dict], game_id: str) -> set[str]:
     return {r["run_type"] for r in history if r["type"] == "prediction" and r["game_id"] == game_id}
 
 
+def _ts(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
 def scored_predictions(history: list[dict]) -> list[dict]:
     """Per game with a result: the last prediction made before kickoff, plus the result."""
     results = {r["game_id"]: r for r in history if r["type"] == "result"}
     last: dict[str, dict] = {}
     for r in history:
-        if r["type"] == "prediction" and r["predicted_at"] < r["kickoff_utc"]:
-            if r["game_id"] not in last or r["predicted_at"] > last[r["game_id"]]["predicted_at"]:
+        if r["type"] == "prediction" and _ts(r["predicted_at"]) < _ts(r["kickoff_utc"]):
+            if r["game_id"] not in last or _ts(r["predicted_at"]) > _ts(last[r["game_id"]]["predicted_at"]):
                 last[r["game_id"]] = r
     ordered = sorted(last.items(), key=lambda kv: kv[1]["kickoff_utc"])
     return [{"prediction": p, "result": results[g]} for g, p in ordered if g in results]

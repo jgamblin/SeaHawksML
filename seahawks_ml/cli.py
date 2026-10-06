@@ -20,7 +20,12 @@ FORECAST_HORIZON = timedelta(days=16)
 
 
 def _now(args) -> datetime:
-    return datetime.fromisoformat(args.now) if getattr(args, "now", None) else datetime.now(UTC)
+    """Current time in UTC. A naive --now is taken as UTC; an aware one is converted."""
+    raw = getattr(args, "now", None)
+    if not raw:
+        return datetime.now(UTC)
+    dt = datetime.fromisoformat(raw)
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
 
 def _set_output(key: str, value: str) -> None:

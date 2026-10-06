@@ -50,3 +50,13 @@ def test_validate_rejects_bad_records():
         validate({"type": "nope"})
     with pytest.raises(ValueError):
         validate(_pred("g1", "sunday", "2026-10-07T12:00:00+00:00"))
+
+
+def test_scored_predictions_compares_instants_not_strings():
+    # 11:00-07:00 is 18:00Z: before the 19:00Z kickoff, although it sorts after it as a string
+    kickoff = "2026-10-11T19:00:00+00:00"
+    early = _pred("g1", "midweek", "2026-10-09T12:00:00+00:00", kickoff)
+    late = _pred("g1", "gameday", "2026-10-11T11:00:00-07:00", kickoff)
+    after = _pred("g1", "gameday", "2026-10-11T13:00:00-07:00", kickoff)  # 20:00Z, post-kickoff
+    scored = scored_predictions([early, late, after, _result("g1", 3)])
+    assert len(scored) == 1 and scored[0]["prediction"] is late
