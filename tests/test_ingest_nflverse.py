@@ -151,3 +151,40 @@ def test_old_schema_team_epa_cache_is_refetched(monkeypatch, tmp_path):
     assert calls == [2005, 2005]
     assert set(nv.TEAM_EPA_SCHEMA) <= set(pl.read_parquet(path).columns)
     assert out["team_epa"].columns == list(nv.TEAM_EPA_SCHEMA)
+
+
+def test_team_divisions_constant_is_complete():
+    from seahawks_ml.ingest.nflverse import TEAM_DIVISIONS
+
+    assert len(TEAM_DIVISIONS) == 32
+    assert {conf for conf, _ in TEAM_DIVISIONS.values()} == {"AFC", "NFC"}
+    divisions = [div for _, div in TEAM_DIVISIONS.values()]
+    assert len(set(divisions)) == 8 and all(divisions.count(d) == 4 for d in set(divisions))
+    assert all(div.startswith(conf) for conf, div in TEAM_DIVISIONS.values())
+    assert TEAM_DIVISIONS["SEA"] == ("NFC", "NFC West")
+
+
+def test_load_teams_normalizes_and_dedups(monkeypatch):
+    import seahawks_ml.ingest.nflverse as nv
+
+    rows = [{"team_abbr": t, "team_conf": c, "team_division": d} for t, (c, d) in nv.TEAM_DIVISIONS.items()]
+    rows += [{"team_abbr": "STL", "team_conf": "NFC", "team_division": "NFC West"},
+             {"team_abbr": "OAK", "team_conf": "AFC", "team_division": "AFC West"},
+             {"team_abbr": "LAR", "team_conf": "NFC", "team_division": "NFC West"}]
+    monkeypatch.setattr(nv.nfl, "load_teams", lambda: pl.DataFrame(rows).with_columns(pl.lit("x").alias("team_name")))
+    out = nv.load_teams()
+    assert out.columns == ["team", "conf", "division"]
+    assert out.height == 32 and out["team"].n_unique() == 32
+    assert out.filter(pl.col("team") == "LA").row(0) == ("LA", "NFC", "NFC West")
+
+
+def test_load_teams_falls_back_to_constant(monkeypatch, capsys):
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_teams", _boom)
+    out = nv.load_teams()
+    assert out.height == 32 and "warning" in capsys.readouterr().out
+    # an incomplete table also falls back
+    monkeypatch.setattr(nv.nfl, "load_teams", lambda: pl.DataFrame(
+        {"team_abbr": ["SEA"], "team_conf": ["NFC"], "team_division": ["NFC West"]}))
+    assert nv.load_teams().height == 32

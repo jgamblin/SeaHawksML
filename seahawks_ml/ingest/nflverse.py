@@ -35,6 +35,18 @@ SNAPS_SCHEMA = {
     "pfr_player_id": pl.Utf8, "position": pl.Utf8, "offense_pct": pl.Float64,
     "defense_pct": pl.Float64,
 }
+TEAMS_SCHEMA = {"team": pl.Utf8, "conf": pl.Utf8, "division": pl.Utf8}
+# Fallback if nflverse's teams table can't be fetched (current abbreviations, as in schedules).
+TEAM_DIVISIONS = {
+    **{t: ("AFC", "AFC East") for t in ("BUF", "MIA", "NE", "NYJ")},
+    **{t: ("AFC", "AFC North") for t in ("BAL", "CIN", "CLE", "PIT")},
+    **{t: ("AFC", "AFC South") for t in ("HOU", "IND", "JAX", "TEN")},
+    **{t: ("AFC", "AFC West") for t in ("DEN", "KC", "LAC", "LV")},
+    **{t: ("NFC", "NFC East") for t in ("DAL", "NYG", "PHI", "WAS")},
+    **{t: ("NFC", "NFC North") for t in ("CHI", "DET", "GB", "MIN")},
+    **{t: ("NFC", "NFC South") for t in ("ATL", "CAR", "NO", "TB")},
+    **{t: ("NFC", "NFC West") for t in ("ARI", "LA", "SEA", "SF")},
+}
 PLAYERS_SCHEMA = {
     "gsis_id": pl.Utf8, "pfr_id": pl.Utf8, "position": pl.Utf8,
     "draft_round": pl.Int64, "rookie_season": pl.Int64,
@@ -128,6 +140,36 @@ def load_schedules() -> pl.DataFrame:
     return nfl.load_schedules(True).with_columns(
         normalize_team("home_team"), normalize_team("away_team")
     )
+
+
+def _static_teams() -> pl.DataFrame:
+    return pl.DataFrame([(t, c, d) for t, (c, d) in TEAM_DIVISIONS.items()], schema=TEAMS_SCHEMA, orient="row")
+
+
+def load_teams() -> pl.DataFrame:
+    """Conference and division of the 32 current teams (columns team, conf, division).
+
+    Historical abbreviations are normalized and only the 32 current franchises kept. Falls
+    back to TEAM_DIVISIONS when the fetch fails or doesn't yield all 32 teams.
+    """
+    try:
+        df = (
+            nfl.load_teams()
+            .select(pl.col("team_abbr").alias("team"), pl.col("team_conf").alias("conf"),
+                    pl.col("team_division").alias("division"))
+            .with_columns(normalize_team("team"))
+            .cast(TEAMS_SCHEMA)
+            .filter(pl.col("team").is_in(list(TEAM_DIVISIONS)))
+            .unique("team", keep="first", maintain_order=True)
+            .sort("team")
+        )
+    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
+        print(f"warning: nflverse teams fetch failed ({exc}); using built-in divisions")
+        return _static_teams()
+    if df.height != len(TEAM_DIVISIONS):
+        print(f"warning: nflverse teams table has {df.height} current teams; using built-in divisions")
+        return _static_teams()
+    return df
 
 
 def load_players() -> pl.DataFrame:
