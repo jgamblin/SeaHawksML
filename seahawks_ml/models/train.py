@@ -5,6 +5,7 @@ from datetime import datetime
 import polars as pl
 
 from seahawks_ml.config import FIRST_TRAIN_SEASON
+from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.models.pipeline import FittedModel, fit_model
 from seahawks_ml.models.store import ProjectConfig
 
@@ -24,5 +25,6 @@ def train_production(frame: pl.DataFrame, config: ProjectConfig, now: datetime) 
         "train_seasons": seasons,
         "n_games": n_games,
         "config": config.to_dict(),
+        "feature_columns": FEATURE_COLUMNS,
     }
     return model, meta

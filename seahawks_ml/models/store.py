@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from seahawks_ml.config import MODELS_DIR
+from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.features.qb import QBParams
 from seahawks_ml.features.ratings import RatingParams
 from seahawks_ml.models.pipeline import FittedModel, ModelConfig
@@ -55,3 +56,9 @@ def save_model(model: FittedModel, path: Path = MODEL_PATH) -> None:
 def load_model(path: Path = MODEL_PATH) -> FittedModel:
     with path.open("rb") as f:
         return pickle.load(f)
+
+
+def check_model_matches(meta: dict, config: ProjectConfig) -> None:
+    """Raise SystemExit when the trained model was built from a different config or feature set."""
+    if meta.get("config") != config.to_dict() or meta.get("feature_columns") != FEATURE_COLUMNS:
+        raise SystemExit("model.pkl is stale: run `python -m seahawks_ml.cli retrain`")

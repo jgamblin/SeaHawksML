@@ -136,7 +136,7 @@ def cmd_predict(args) -> None:
     from seahawks_ml.features.base import prepare_games
     from seahawks_ml.ingest import nflverse
     from seahawks_ml.ingest.weather import forecast_for_games
-    from seahawks_ml.models.store import METRICS_PATH, load_config, load_model
+    from seahawks_ml.models.store import METRICS_PATH, check_model_matches, load_config, load_model
     from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
     from seahawks_ml.pipeline.history import append_record, read_history, runs_done
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction
@@ -178,7 +178,9 @@ def cmd_predict(args) -> None:
     frame = _build(raw, stadiums, config)
     row = frame.filter(pl.col("game_id") == game["game_id"])
     model = load_model()
-    version = json.loads(METRICS_PATH.read_text())["model_version"]
+    metrics = json.loads(METRICS_PATH.read_text())
+    check_model_matches(metrics, config)
+    version = metrics["model_version"]
     record = make_prediction(row, model, run_type, now, version,
                              latest_injury_week(raw.injuries, game["season"]))
     append_record(record)
