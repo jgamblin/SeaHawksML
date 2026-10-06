@@ -3,155 +3,606 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Seahawks Model</title>
+<meta name="color-scheme" content="dark light">
+<title>Seahawks Game Model</title>
+<meta name="description" content="Win probability, projected margin and model report for the Seattle Seahawks' next game.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#f7f8f9; --card:#fff; --ink:#1b2430; --muted:#5b6673; --line:#dfe3e8;
-          --navy:#002244; --green:#4c8a1e; --grey:#a5acaf; --bad:#b3261e; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#0f141a; --card:#171e26; --ink:#e7ecf1; --muted:#9aa6b2; --line:#2a3440;
-            --navy:#8fb3d9; --green:#7fc04a; --grey:#7d868c; --bad:#f2827a; }
+  /* Palette: College Navy #002244 · Action Green #69BE28 · Wolf Grey #A5ACAF */
+  :root {
+    --navy:#002244; --navy-deep:#00152b; --action:#69BE28; --wolf:#A5ACAF;
+    --bg:#001a35; --surface:#062a50; --surface-2:#0b3460; --line:rgba(165,172,175,.22);
+    --ink:#ffffff; --muted:#A5ACAF; --pos:#69BE28; --neg:#F2876F; --pos-fill:#69BE28; --neg-fill:#E0715A;
+    --track:rgba(165,172,175,.18); --chart-grid:rgba(165,172,175,.14);
+    --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+    --body:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --radius:4px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#eef1f2; --surface:#ffffff; --surface-2:#f4f6f7; --line:rgba(0,34,68,.14);
+      --ink:#0a1e33; --muted:#4f5a63; --pos:#2f6b10; --neg:#b23a1e; --pos-fill:#4f9a1a; --neg-fill:#d0614a;
+      --track:rgba(0,34,68,.1); --chart-grid:rgba(0,34,68,.08);
+    }
   }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink);
-         font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:1.6rem; margin:0 0 4px; } h2 { font-size:1.15rem; margin:0 0 12px; }
-  .muted { color:var(--muted); font-size:.9rem; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-top:16px; }
-  .hero { display:flex; flex-wrap:wrap; gap:24px; align-items:baseline; }
-  .big { font-size:3rem; font-weight:700; color:var(--navy); font-variant-numeric:tabular-nums; }
-  .stat { min-width:140px; } .stat .label { color:var(--muted); font-size:.85rem; }
-  .stat .value { font-size:1.3rem; font-weight:600; font-variant-numeric:tabular-nums; }
-  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:.92rem; }
-  th { color:var(--muted); font-weight:500; }
-  .pos { color:var(--green); } .neg { color:var(--bad); }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; color:var(--ink); font:16px/1.55 var(--body); background-color:var(--bg);
+    background-image:
+      radial-gradient(1100px 520px at 12% -8%, rgba(105,190,40,.13), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, rgba(165,172,175,.08), transparent 55%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,.018) 0 2px, transparent 2px 14px);
+    background-attachment:fixed; overflow-x:hidden;
+  }
+  @media (prefers-color-scheme: light) {
+    body { background-image:
+      radial-gradient(1000px 420px at 10% -10%, rgba(105,190,40,.12), transparent 60%),
+      repeating-linear-gradient(115deg, rgba(0,34,68,.025) 0 2px, transparent 2px 14px); }
+  }
+  a { color:inherit; text-decoration-color:var(--action); text-underline-offset:3px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
+  .num { font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); }
+  .pos { color:var(--pos); } .neg { color:var(--neg); }
+
+  /* ---------- top bar ---------- */
+  .topbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px;
+            padding:18px 0 14px; border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:800;
+           text-transform:uppercase; letter-spacing:.08em; font-size:1.05rem; }
+  .brand .slash { width:26px; height:14px; background:var(--action); transform:skewX(-24deg); flex:none; }
+  .brand .slash + .slash { width:10px; margin-left:-6px; background:var(--wolf); }
+  .meta { font-size:.82rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .meta b { color:var(--ink); font-weight:600; }
+
+  /* ---------- section chrome ---------- */
+  section { margin-top:28px; }
+  .eyebrow { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:.16em;
+             font-size:.8rem; color:var(--action); display:flex; align-items:center; gap:10px; margin:0 0 6px; }
+  @media (prefers-color-scheme: light) { .eyebrow { color:var(--pos); } }
+  .eyebrow::before { content:""; width:18px; height:3px; background:currentColor; transform:skewX(-30deg); }
+  h2 { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+       font-size:1.7rem; line-height:1.05; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:.9rem; margin:0 0 16px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+          padding:20px; position:relative; min-width:0; }
+  .card::before { content:""; position:absolute; left:-1px; top:-1px; width:56px; height:3px; background:var(--action); }
+  .grid-2 { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+  @media (min-width:860px) { .grid-2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  .empty { border:1px dashed var(--line); border-radius:var(--radius); padding:22px 20px; color:var(--muted);
+           background:repeating-linear-gradient(135deg, transparent 0 10px, rgba(165,172,175,.05) 10px 20px); }
+  .empty strong { display:block; font-family:var(--display); text-transform:uppercase; letter-spacing:.04em;
+                  font-size:1.25rem; color:var(--ink); margin-bottom:2px; }
+
+  /* ---------- hero ---------- */
+  .hero { margin-top:22px; background:linear-gradient(160deg, #003060 0%, var(--navy) 45%, var(--navy-deep) 100%);
+          color:#fff; border-radius:var(--radius); position:relative; overflow:hidden;
+          border:1px solid rgba(165,172,175,.25); box-shadow:0 30px 60px -30px rgba(0,0,0,.6); }
+  .hero::after { content:""; position:absolute; inset:0; pointer-events:none;
+                 background:repeating-linear-gradient(115deg, rgba(255,255,255,.03) 0 2px, transparent 2px 12px); }
+  .hero-stripe { position:absolute; right:-110px; top:0; bottom:0; width:220px; transform:skewX(-18deg);
+                 background:linear-gradient(90deg, transparent 0 30%, rgba(105,190,40,.9) 30% 46%, transparent 46% 56%, rgba(165,172,175,.55) 56% 62%, transparent 62%);
+                 opacity:.9; pointer-events:none; }
+  @media (max-width:899px) { .hero-stripe { width:120px; right:-70px; opacity:.45; } .watermark { font-size:8rem; right:20px; bottom:-20px; } }
+  .watermark { position:absolute; right:110px; bottom:-34px; font-family:var(--display); font-weight:800;
+               font-size:13rem; line-height:1; letter-spacing:-.02em; color:transparent;
+               -webkit-text-stroke:1.5px rgba(165,172,175,.14); pointer-events:none; user-select:none; }
+  .hero-inner { position:relative; z-index:1; padding:26px 20px 24px; display:grid; gap:26px;
+                grid-template-columns:minmax(0,1fr); }
+  @media (min-width:900px) { .hero-inner { grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); padding:34px 36px 32px; gap:40px; }
+                             .hero-stats { padding-right:60px; } }
+  .hero .eyebrow { color:var(--action); }
+  .matchup { font-family:var(--display); font-weight:800; text-transform:uppercase; line-height:.9;
+             font-size:clamp(2.4rem, 9vw, 4.2rem); letter-spacing:.005em; margin:4px 0 8px; }
+  .matchup .vs { color:var(--wolf); font-weight:600; font-size:.55em; vertical-align:.32em; margin:0 .18em; letter-spacing:.08em; }
+  .kick { color:#d5dadc; font-size:.95rem; display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; }
+  .kick .count { font-family:var(--display); font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+                 font-size:.8rem; background:rgba(105,190,40,.16); color:#a6e27a; padding:2px 8px; border-radius:2px; }
+  .winline { display:flex; align-items:flex-end; gap:14px; margin-top:22px; flex-wrap:wrap; }
+  .bigpct { font-family:var(--display); font-weight:800; line-height:.8; font-size:clamp(5.5rem, 26vw, 9.5rem);
+            letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .bigpct sup { font-size:.38em; vertical-align:.95em; color:var(--action); margin-left:.04em; letter-spacing:0; }
+  .winlabel { font-family:var(--display); text-transform:uppercase; letter-spacing:.12em; font-weight:700;
+              color:var(--wolf); font-size:.9rem; padding-bottom:10px; line-height:1.2; }
+  .winlabel b { display:block; color:#fff; font-size:1.25rem; letter-spacing:.04em; }
+
+  /* tug-of-war probability bar */
+  .tug { margin-top:22px; }
+  .tug-bar { position:relative; height:22px; background:rgba(165,172,175,.3); border-radius:2px; overflow:visible; }
+  .tug-fill { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, #4f9a1a, var(--action));
+              width:var(--w); animation:grow 1.1s cubic-bezier(.2,.8,.2,1) both .25s; border-radius:2px 0 0 2px; }
+  .tug-fill::after { content:""; position:absolute; right:-5px; top:-4px; bottom:-4px; width:10px; background:#fff;
+                     transform:skewX(-18deg); box-shadow:0 0 0 2px var(--navy); }
+  .tug-mid { position:absolute; left:50%; top:-6px; bottom:-6px; width:2px; background:rgba(255,255,255,.55); }
+  .tug-vegas { position:absolute; top:-12px; left:var(--v); transform:translateX(-50%); }
+  .tug-vegas::before { content:""; display:block; width:0; height:0; border:6px solid transparent; border-top:8px solid var(--wolf);
+                       border-bottom:0; margin:0 auto; }
+  .tug-legend { display:flex; justify-content:space-between; gap:12px; margin-top:8px; font-size:.82rem; color:#cfd5d7;
+                font-family:var(--display); letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+  .tug-legend .key { display:inline-flex; align-items:center; gap:6px; }
+  .tug-legend .tri { width:0; height:0; border:5px solid transparent; border-top:7px solid var(--wolf); border-bottom:0; }
+  @keyframes grow { from { width:50%; } to { width:var(--w); } }
+
+  .hero-stats { display:grid; gap:12px; align-content:start; }
+  .tile { background:rgba(0,21,43,.82); border:1px solid rgba(165,172,175,.22); border-radius:var(--radius); padding:14px 16px;
+          backdrop-filter:blur(2px); }
+  .tile .k { font-family:var(--display); text-transform:uppercase; letter-spacing:.12em; font-weight:700; font-size:.78rem;
+             color:var(--wolf); display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .tile .v { font-family:var(--display); font-weight:700; font-size:2rem; line-height:1.05; font-variant-numeric:tabular-nums; }
+  .tile .v small { font-size:.5em; color:var(--wolf); font-weight:600; letter-spacing:.06em; margin-left:6px; text-transform:uppercase; }
+  .tile .n { font-size:.85rem; color:#cfd5d7; }
+  .tag { font-family:var(--display); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; font-weight:700;
+         border:1px solid currentColor; padding:0 6px; border-radius:2px; color:var(--wolf); white-space:nowrap; }
+  .hero .pos { color:var(--action); } .hero .neg { color:#F2876F; }
+  /* margin number line */
+  .mline { position:relative; height:28px; margin:10px 0 2px; }
+  .mline .axis { position:absolute; left:0; right:0; top:13px; height:2px; background:rgba(165,172,175,.35); }
+  .mline .zero { position:absolute; left:50%; top:4px; bottom:4px; width:2px; background:rgba(255,255,255,.6); }
+  .mline .band { position:absolute; top:7px; height:14px; background:rgba(105,190,40,.35); border:1px solid rgba(105,190,40,.8);
+                 left:var(--lo); width:calc(var(--hi) - var(--lo)); border-radius:2px; }
+  .mline .pt { position:absolute; top:3px; width:6px; height:22px; background:#fff; left:var(--m); transform:translateX(-50%) skewX(-14deg); }
+  .mline-scale { display:flex; justify-content:space-between; font-size:.72rem; color:var(--wolf); font-variant-numeric:tabular-nums; }
+  .wx { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:.85rem; padding:3px 10px; border-radius:999px;
+          background:rgba(165,172,175,.14); border:1px solid rgba(165,172,175,.25); color:#e9eced; font-variant-numeric:tabular-nums; }
+  .chip.src { background:rgba(105,190,40,.14); border-color:rgba(105,190,40,.45); color:#bfe99c;
+              font-family:var(--display); letter-spacing:.1em; text-transform:uppercase; font-weight:700; font-size:.75rem; }
+  .hero-empty { padding:40px 20px; position:relative; z-index:1; }
+  @media (min-width:900px) { .hero-empty { padding:56px 36px; } }
+  .hero-empty h1 { font-family:var(--display); text-transform:uppercase; font-weight:800; font-size:clamp(2.2rem,7vw,3.6rem);
+                   line-height:.95; margin:6px 0 10px; }
+  .hero-empty p { color:#cfd5d7; max-width:46ch; margin:0; }
+
+  /* ---------- charts ---------- */
   .chart { position:relative; height:260px; }
-  .table-wrap { overflow-x:auto; }
+  .chart.tall { height:300px; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; color:var(--muted); margin:0 0 10px; }
+  .legend i { display:inline-block; width:18px; height:3px; vertical-align:middle; margin-right:6px; background:var(--action); }
+  .legend i.dash { background:repeating-linear-gradient(90deg, var(--wolf) 0 5px, transparent 5px 9px); }
+  .legend i.dot { width:10px; height:10px; border-radius:1px; }
+  .legend i.coin { background:repeating-linear-gradient(90deg, var(--neg) 0 2px, transparent 2px 6px); }
+
+  /* ---------- factors ---------- */
+  .factors { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .factor { display:grid; grid-template-columns:minmax(0,1fr) 3.4rem; gap:4px 10px; align-items:center; }
+  .factor .lab { font-size:.92rem; grid-column:1 / -1; display:flex; justify-content:space-between; gap:8px; }
+  .factor .lab span:last-child { font-family:var(--display); font-weight:700; font-size:1.05rem; font-variant-numeric:tabular-nums; }
+  .diverge { grid-column:1 / -1; position:relative; height:12px; background:var(--track); border-radius:2px; }
+  .diverge::before { content:""; position:absolute; left:50%; top:-3px; bottom:-3px; width:2px; background:var(--muted); opacity:.6; }
+  .diverge .b { position:absolute; top:0; bottom:0; border-radius:2px; animation:fade .8s ease both; }
+  .diverge .b.for { left:50%; background:var(--pos-fill); }
+  .diverge .b.against { right:50%; background:var(--neg-fill); }
+  .axis-key { display:flex; justify-content:space-between; font-family:var(--display); text-transform:uppercase; letter-spacing:.12em;
+              font-size:.74rem; font-weight:700; color:var(--muted); margin:0 0 12px; }
+  .axis-key .pos, .axis-key .neg { font-weight:700; }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -4px; padding:0 4px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:10px 10px; border-bottom:1px solid var(--line); font-size:.92rem; white-space:nowrap; vertical-align:middle; }
+  th { font-family:var(--display); text-transform:uppercase; letter-spacing:.12em; font-weight:700; font-size:.74rem; color:var(--muted); }
+  tbody tr:hover { background:rgba(105,190,40,.05); }
+  td.r, th.r { text-align:right; }
+  .wl { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:3px; font-family:var(--display);
+        font-weight:800; font-size:1rem; margin-right:8px; vertical-align:middle; }
+  .wl.W { background:var(--action); color:var(--navy); }
+  .wl.L { background:transparent; color:var(--neg); box-shadow:inset 0 0 0 2px var(--neg); }
+  .wl.T { background:var(--track); color:var(--ink); }
+  .wl.up { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--line); }
+  .traj { display:inline-flex; align-items:center; gap:4px; }
+  .traj span { font-size:.82rem; color:var(--muted); }
+  .traj span:last-child { color:var(--ink); font-weight:600; }
+  .traj em { font-style:normal; color:var(--muted); opacity:.6; font-size:.75rem; }
+  .pick { font-family:var(--display); font-weight:700; font-size:1.1rem; }
+  .mark { display:inline-flex; align-items:center; gap:6px; font-size:.85rem; font-weight:600; }
+  .mark::before { content:""; width:9px; height:9px; transform:rotate(45deg); background:currentColor; }
+  .mark.hit { color:var(--pos); } .mark.miss { color:var(--neg); } .mark.na { color:var(--muted); }
+  .mark.na::before { background:transparent; box-shadow:inset 0 0 0 1.5px currentColor; }
+  .opp { font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:.03em; }
+  .opp small { color:var(--muted); font-weight:600; margin-right:4px; font-size:.8em; letter-spacing:.08em; text-transform:uppercase; }
+  .record { display:flex; align-items:baseline; gap:10px; margin:0 0 14px; flex-wrap:wrap; }
+  .record .big { font-family:var(--display); font-weight:800; font-size:2.6rem; line-height:1; font-variant-numeric:tabular-nums; }
+
+  /* model report */
+  .method b { font-weight:600; }
+  tr.is-model td:first-child { box-shadow:inset 3px 0 0 var(--action); }
+  .ci { position:relative; width:150px; height:14px; display:inline-block; vertical-align:middle; margin-left:10px; }
+  .ci .rng { position:absolute; top:6px; height:2px; background:var(--muted); left:var(--a); width:calc(var(--b) - var(--a)); }
+  .ci .rng::before, .ci .rng::after { content:""; position:absolute; top:-4px; width:2px; height:10px; background:var(--muted); }
+  .ci .rng::before { left:0; } .ci .rng::after { right:0; }
+  .ci .pt { position:absolute; top:2px; width:10px; height:10px; transform:translateX(-50%) rotate(45deg); left:var(--p); background:var(--wolf); }
+  tr.is-model .ci .pt { background:var(--action); }
+  tr.is-model .ci .rng, tr.is-model .ci .rng::before, tr.is-model .ci .rng::after { background:var(--action); }
+  .note { font-size:.85rem; color:var(--muted); margin:12px 0 0; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:16px; }
+  .kpi { background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; }
+  .kpi .k { font-family:var(--display); text-transform:uppercase; letter-spacing:.12em; font-weight:700; font-size:.74rem; color:var(--muted); }
+  .kpi .v { font-family:var(--display); font-weight:800; font-size:1.9rem; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .kpi .n { font-size:.82rem; color:var(--muted); }
+
+  footer { margin:44px 0 0; padding:22px 0 40px; border-top:1px solid var(--line); color:var(--muted); font-size:.85rem;
+           display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 24px; }
+  footer strong { color:var(--ink); font-weight:600; }
+
+  /* load choreography */
+  .rise { animation:rise .7s cubic-bezier(.2,.8,.2,1) both; }
+  .d1 { animation-delay:.05s; } .d2 { animation-delay:.15s; } .d3 { animation-delay:.25s; } .d4 { animation-delay:.35s; } .d5 { animation-delay:.45s; }
+  @keyframes rise { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>Seahawks Game Model</h1>
-  <div class="muted">Last updated {{ data.generated_at[:16].replace("T", " ") }} UTC
-    {% if data.metrics %}· model {{ data.metrics.model_version }}{% endif %}</div>
+{% set RUN_LABELS = {"midweek": "Midweek", "final_injury": "Final injury report", "gameday": "Gameday"} %}
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand"><span class="slash"></span><span class="slash"></span>Seahawks Game Model</div>
+    <div class="meta">
+      <span>Updated <b data-utc="{{ data.generated_at }}" data-fmt="stamp">{{ data.generated_at[:16].replace("T", " ") }} UTC</b></span>
+      {% if data.metrics %}<span>Model <b>{{ data.metrics.model_version }}</b></span>
+      {% if data.metrics.n_games %}<span>Trained on <b class="num">{{ "{:,}".format(data.metrics.n_games) }}</b> games</span>{% endif %}
+      {% else %}<span>Model not yet trained</span>{% endif %}
+    </div>
+  </header>
 
+  {# ================= HERO ================= #}
   {% set g = data.next_game %}
-  <section class="card">
+  <section class="hero rise d1" aria-labelledby="hero-title" style="margin-top:22px">
+    <div class="hero-stripe" aria-hidden="true"></div>
     {% if g %}
-      {% set p = g.latest %}
-      <h2>Next: {{ "vs" if p.seahawks_home else "at" }} {{ p.opponent }}</h2>
-      <div class="muted">Kickoff {{ p.kickoff_utc[:16].replace("T", " ") }} UTC · latest run: {{ p.run_type }}</div>
-      <div class="hero">
-        <div><div class="big">{{ "%.0f"|format(p.p_seahawks * 100) }}%</div><div class="muted">Seahawks win probability</div></div>
-        <div class="stat"><div class="label">Predicted margin</div>
-          <div class="value">{{ "%+.1f"|format(p.margin_seahawks) }}</div>
-          <div class="muted">80% range {{ "%+.0f"|format(p.margin_lo) }} to {{ "%+.0f"|format(p.margin_hi) }}</div></div>
-        <div class="stat"><div class="label">Vegas-implied (benchmark)</div>
-          <div class="value">{% if p.p_vegas_seahawks is not none %}{{ "%.0f"|format(p.p_vegas_seahawks * 100) }}%{% else %}n/a{% endif %}</div></div>
-        <div class="stat"><div class="label">Weather ({{ p.weather.source }})</div>
-          <div class="value">{{ "%.0f"|format(p.weather.temp_f) }}°F</div>
-          <div class="muted">wind {{ "%.0f"|format(p.weather.wind_mph) }} mph · precip {{ p.weather.precip_in }} in</div></div>
+    {% set p = g.latest %}
+    {% set pct = p.p_seahawks * 100 %}
+    <div class="watermark" aria-hidden="true">{{ p.opponent }}</div>
+    <div class="hero-inner">
+      <div>
+        <p class="eyebrow">Next game · {{ RUN_LABELS.get(p.run_type, p.run_type) }} run</p>
+        <h1 class="matchup" id="hero-title">Seattle<span class="vs">{{ "vs" if p.seahawks_home else "at" }}</span>{{ p.opponent }}</h1>
+        <div class="kick">
+          <span>Kickoff <b data-utc="{{ p.kickoff_utc }}" data-fmt="kick">{{ p.kickoff_utc[:16].replace("T", " ") }} UTC</b></span>
+          <span class="count" data-countdown="{{ p.kickoff_utc }}" hidden></span>
+        </div>
+        <div class="winline">
+          <div class="bigpct" aria-label="{{ '%.0f'|format(pct) }} percent">{{ "%.0f"|format(pct) }}<sup>%</sup></div>
+          <div class="winlabel"><b>Seahawks win probability</b>{{ "Seattle favored" if p.p_seahawks > 0.5 else ("Toss-up" if p.p_seahawks == 0.5 else p.opponent ~ " favored") }}</div>
+        </div>
+        <div class="tug" role="img" aria-label="Win probability bar: Seattle {{ '%.0f'|format(pct) }} percent{% if p.p_vegas_seahawks is not none %}, Vegas benchmark {{ '%.0f'|format(p.p_vegas_seahawks * 100) }} percent{% endif %}">
+          <div class="tug-bar">
+            <div class="tug-fill" style="--w:{{ '%.1f'|format(pct) }}%"></div>
+            <div class="tug-mid"></div>
+            {% if p.p_vegas_seahawks is not none %}<div class="tug-vegas" style="--v:{{ '%.1f'|format(p.p_vegas_seahawks * 100) }}%"></div>{% endif %}
+          </div>
+          <div class="tug-legend">
+            <span>SEA {{ "%.0f"|format(pct) }}</span>
+            {% if p.p_vegas_seahawks is not none %}<span class="key"><span class="tri"></span>Vegas benchmark</span>{% endif %}
+            <span>{{ p.opponent }} {{ "%.0f"|format(100 - pct) }}</span>
+          </div>
+        </div>
       </div>
+
+      <div class="hero-stats">
+        {% set dom = [p.margin_lo|abs, p.margin_hi|abs, p.margin_seahawks|abs, 14]|max %}
+        {% set dom = ((dom / 7)|round(0, "ceil")) * 7 %}
+        <div class="tile">
+          <div class="k">Projected margin <span class="tag">Seattle POV</span></div>
+          <div class="v {{ 'pos' if p.margin_seahawks > 0 else ('neg' if p.margin_seahawks < 0 else '') }}">{{ "%+.1f"|format(p.margin_seahawks) }}<small>pts</small></div>
+          <div class="mline" aria-hidden="true">
+            <div class="axis"></div>
+            <div class="band" style="--lo:{{ '%.2f'|format((p.margin_lo + dom) / (2 * dom) * 100) }}%;--hi:{{ '%.2f'|format((p.margin_hi + dom) / (2 * dom) * 100) }}%"></div>
+            <div class="zero"></div>
+            <div class="pt" style="--m:{{ '%.2f'|format((p.margin_seahawks + dom) / (2 * dom) * 100) }}%"></div>
+          </div>
+          <div class="mline-scale"><span>{{ "%+d"|format(-dom) }}</span><span>0</span><span>{{ "%+d"|format(dom) }}</span></div>
+          <div class="n">80% range {{ "%+.0f"|format(p.margin_lo) }} to {{ "%+.0f"|format(p.margin_hi) }}</div>
+        </div>
+        <div class="tile">
+          <div class="k">Vegas-implied <span class="tag">Benchmark</span></div>
+          {% if p.p_vegas_seahawks is not none %}
+          {% set diff = (p.p_seahawks - p.p_vegas_seahawks) * 100 %}
+          <div class="v">{{ "%.0f"|format(p.p_vegas_seahawks * 100) }}%</div>
+          <div class="n">Model is {{ "%.0f"|format(diff|abs) }} pt{{ "" if (diff|abs) < 1.5 and (diff|abs) >= 0.5 else "s" }} {{ "above" if diff > 0 else "below" }} the market{% if (diff|abs) < 0.5 %} (in line){% endif %}. Shown for comparison only.</div>
+          {% else %}
+          <div class="v muted">n/a</div>
+          <div class="n">No betting line posted yet.</div>
+          {% endif %}
+        </div>
+        <div class="tile">
+          <div class="k">Weather at kickoff</div>
+          <div class="wx">
+            <span class="chip src">{{ p.weather.source }}</span>
+            {% if p.weather.source == "indoor" %}
+            <span class="chip">Roof closed</span>
+            {% else %}
+            <span class="chip">{{ "%.0f"|format(p.weather.temp_f) }}°F</span>
+            <span class="chip">Wind {{ "%.0f"|format(p.weather.wind_mph) }} mph</span>
+            <span class="chip">Precip {{ "%.2f"|format(p.weather.precip_in) }} in</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
     {% else %}
-      <h2>No upcoming prediction yet</h2>
-      <div class="muted">The next run happens about four days before kickoff.</div>
+    <div class="hero-empty">
+      <p class="eyebrow">Next game</p>
+      <h1 id="hero-title">No upcoming prediction yet</h1>
+      <p>The next run happens about four days before kickoff, then again after the final injury report and on gameday.</p>
+    </div>
     {% endif %}
   </section>
 
-  {% if g %}
-  <section class="card">
-    <h2>This week's trajectory</h2>
-    <div class="chart"><canvas id="trajectory"></canvas></div>
-  </section>
-  <section class="card">
-    <h2>Why: biggest factors (points for Seattle)</h2>
-    <table><tbody>
-      {% for f in g.latest.top_factors %}
-      <tr><td>{{ f.label }}</td><td class="{{ 'pos' if f.points >= 0 else 'neg' }}">{{ "%+.1f"|format(f.points) }}</td></tr>
-      {% endfor %}
-    </tbody></table>
-  </section>
-  {% endif %}
+  {# ================= TRAJECTORY + FACTORS ================= #}
+  <div class="grid-2" style="margin-top:28px">
+    <section class="card rise d2" style="margin-top:0" aria-labelledby="traj-h">
+      <p class="eyebrow">This week</p>
+      <h2 id="traj-h">Trajectory</h2>
+      <p class="sub">How the win probability moved across the three runs.</p>
+      {% if g %}
+      <div class="legend"><span><i></i>Model</span><span><i class="dash"></i>Vegas (benchmark)</span></div>
+      <div class="chart"><canvas id="trajectory" aria-label="Win probability by run, model versus Vegas" role="img"></canvas></div>
+      {% else %}
+      <div class="empty"><strong>Nothing this week</strong>The trajectory appears after the midweek run.</div>
+      {% endif %}
+    </section>
 
-  <section class="card">
-    <h2>Season log</h2>
-    <div class="muted">Scored on the last prediction before kickoff · record {{ data.record.correct }}/{{ data.record.games }}</div>
+    <section class="card rise d3" style="margin-top:0" aria-labelledby="why-h">
+      <p class="eyebrow">Why</p>
+      <h2 id="why-h">Biggest factors</h2>
+      <p class="sub">Contribution to the projected margin, in points.</p>
+      {% if g and g.latest.top_factors %}
+      {% set fmax = [g.latest.top_factors|map(attribute="points")|map("abs")|max, 0.1]|max %}
+      <div class="axis-key"><span class="neg">◀ Against Seattle</span><span class="pos">For Seattle ▶</span></div>
+      <ul class="factors">
+        {% for f in g.latest.top_factors %}
+        {% set w = (f.points|abs) / fmax * 50 %}
+        <li class="factor">
+          <div class="lab"><span>{{ f.label or f.feature }}</span><span class="{{ 'pos' if f.points >= 0 else 'neg' }}">{{ "%+.1f"|format(f.points) }}</span></div>
+          <div class="diverge" role="img" aria-label="{{ f.label or f.feature }}: {{ '%+.1f'|format(f.points) }} points"><div class="b {{ 'for' if f.points >= 0 else 'against' }}" style="width:{{ '%.1f'|format(w) }}%; animation-delay:{{ '%.2f'|format(0.3 + loop.index0 * 0.06) }}s"></div></div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty"><strong>No factors yet</strong>Factor breakdowns come with each prediction run.</div>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ================= SEASON LOG ================= #}
+  <section class="card rise d4" aria-labelledby="log-h">
+    <p class="eyebrow">Season log</p>
+    <h2 id="log-h">Every pick, on the record</h2>
+    <p class="sub">Predictions are append-only. Each game is scored on the last prediction made before kickoff.</p>
+    {% if data.season_log %}
+    <div class="record">
+      <span class="big">{{ data.record.correct }}<span class="muted">–</span>{{ data.record.games - data.record.correct }}</span>
+      <span class="muted">picks correct / wrong{% if data.record.games %} · {{ "%.0f"|format(data.record.correct / data.record.games * 100) }}% hit rate{% endif %}</span>
+    </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Kickoff</th><th>Opponent</th><th>Runs (win %)</th><th>Final pick</th><th>Result</th></tr></thead>
+      <thead><tr><th>Kickoff</th><th>Matchup</th><th>Runs (win %)</th><th class="r">Final pick</th><th>Result</th><th>Call</th></tr></thead>
       <tbody>
       {% for game in data.season_log %}
+        {% set lp = game.latest.p_seahawks %}
+        {% set res = game.result %}
         <tr>
-          <td>{{ game.kickoff_utc[:10] }}</td>
-          <td>{{ "vs" if game.seahawks_home else "at" }} {{ game.opponent }}</td>
-          <td>{% for t in game.trajectory %}{{ "%.0f"|format(t.p_seahawks * 100) }}{% if not loop.last %} → {% endif %}{% endfor %}</td>
-          <td>{{ "%.0f"|format(game.latest.p_seahawks * 100) }}%</td>
-          <td>{% if game.result %}{{ "W" if game.result.margin_seahawks > 0 else ("L" if game.result.margin_seahawks < 0 else "T") }}
-              {{ game.result.seahawks_score }}-{{ game.result.opponent_score }}{% else %}—{% endif %}</td>
+          <td><span data-utc="{{ game.kickoff_utc }}" data-fmt="date">{{ game.kickoff_utc[:10] }}</span></td>
+          <td class="opp"><small>{{ "vs" if game.seahawks_home else "at" }}</small>{{ game.opponent }}</td>
+          <td><span class="traj">{% for t in game.trajectory %}<span class="{{ 'pos' if t.p_seahawks > 0.5 else '' }}">{{ "%.0f"|format(t.p_seahawks * 100) }}</span>{% if not loop.last %}<em>›</em>{% endif %}{% endfor %}</span></td>
+          <td class="r"><span class="pick {{ 'pos' if lp > 0.5 else 'neg' }}">{{ "%.0f"|format(lp * 100) }}%</span></td>
+          <td>{% if res %}{% set wl = "W" if res.margin_seahawks > 0 else ("L" if res.margin_seahawks < 0 else "T") %}<span class="wl {{ wl }}">{{ wl }}</span><span class="num">{{ res.seahawks_score }}–{{ res.opponent_score }}</span>{% else %}<span class="wl up">·</span><span class="muted">Upcoming</span>{% endif %}</td>
+          <td>{% if res and res.margin_seahawks != 0 %}{% if (lp > 0.5) == (res.margin_seahawks > 0) %}<span class="mark hit">Correct</span>{% else %}<span class="mark miss">Missed</span>{% endif %}{% elif res %}<span class="mark na">Tie</span>{% else %}<span class="mark na">Pending</span>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table></div>
+    {% else %}
+    <div class="empty"><strong>No games logged yet</strong>The log fills in as the season's predictions are made.</div>
+    {% endif %}
   </section>
 
-  {% if data.backtest %}
-  <section class="card">
-    <h2>Model report (walk-forward backtest {{ data.backtest.seasons[0] }}–{{ data.backtest.seasons[-1] }})</h2>
+  {# ================= MODEL REPORT ================= #}
+  <section class="card rise d5" aria-labelledby="rep-h">
+    <p class="eyebrow">Model report</p>
+    {% set bt = data.backtest %}
+    {% if bt %}
+    <h2 id="rep-h">Walk-forward backtest {{ bt.seasons[0] }}–{{ bt.seasons[-1] }}</h2>
+    <p class="sub">Every season is predicted by a model trained only on earlier seasons. Lower log-loss is better; a coin flip scores 0.693.</p>
+    {% set methods = [("model", "This model", ""), ("elo", "Elo only", "Baseline"), ("home", "Home team always", "Baseline"), ("vegas", "Vegas spread", "Benchmark")] %}
+    {% set los = [] %}{% set his = [] %}
+    {% for name, _l, _t in methods %}{% set _ = los.append(bt.score[name].log_loss_ci90[0]) %}{% set _ = his.append(bt.score[name].log_loss_ci90[1]) %}{% endfor %}
+    {% set lo0 = (los|min) - 0.004 %}{% set span = (his|max) + 0.004 - lo0 %}
     <div class="table-wrap"><table>
-      <thead><tr><th>Method</th><th>Log-loss</th><th>90% CI</th><th>Brier</th><th>Accuracy</th></tr></thead>
+      <thead><tr><th>Method</th><th class="r">Log-loss</th><th>90% CI</th><th class="r">Brier</th><th class="r">Accuracy</th></tr></thead>
       <tbody>
-      {% for name, label in [("model", "This model"), ("elo", "Elo only"), ("home", "Home team always"), ("vegas", "Vegas spread (benchmark)")] %}
-        {% set m = data.backtest.score[name] %}
-        <tr><td>{{ label }}</td><td>{{ "%.4f"|format(m.log_loss) }}</td>
-            <td>{{ "%.4f"|format(m.log_loss_ci90[0]) }}–{{ "%.4f"|format(m.log_loss_ci90[1]) }}</td>
-            <td>{{ "%.4f"|format(m.brier) }}</td><td>{{ "%.1f"|format(m.accuracy * 100) }}%</td></tr>
+      {% for name, label, kind in methods %}
+        {% set m = bt.score[name] %}
+        <tr class="{{ 'is-model' if name == 'model' else '' }}">
+          <td class="method"><b>{{ label }}</b>{% if kind %} <span class="tag">{{ kind }}</span>{% endif %}</td>
+          <td class="r"><b class="pick">{{ "%.3f"|format(m.log_loss) }}</b></td>
+          <td><span class="muted">{{ "%.3f"|format(m.log_loss_ci90[0]) }}–{{ "%.3f"|format(m.log_loss_ci90[1]) }}</span>
+            <span class="ci" aria-hidden="true" style="--a:{{ '%.1f'|format((m.log_loss_ci90[0] - lo0) / span * 100) }}%;--b:{{ '%.1f'|format((m.log_loss_ci90[1] - lo0) / span * 100) }}%;--p:{{ '%.1f'|format((m.log_loss - lo0) / span * 100) }}%"><span class="rng"></span><span class="pt"></span></span></td>
+          <td class="r">{{ "%.3f"|format(m.brier) }}</td>
+          <td class="r">{{ "%.1f"|format(m.accuracy * 100) }}%</td>
+        </tr>
       {% endfor %}
       </tbody>
     </table></div>
-    {% if data.holdout %}
-    <p class="muted">Locked holdout ({{ data.holdout.seasons|join(", ") }}): log-loss {{ "%.4f"|format(data.holdout.score.model.log_loss) }}
-      vs Vegas {{ "%.4f"|format(data.holdout.score.vegas.log_loss) }}.</p>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k">Locked holdout</div>
+        {% if data.holdout %}
+        {% set hm = data.holdout.score.model.log_loss %}{% set hv = data.holdout.score.vegas.log_loss %}
+        <div class="v">{{ "%.3f"|format(hm) }}</div>
+        <div class="n">{{ data.holdout.seasons|join(", ") }} · Vegas {{ "%.3f"|format(hv) }} ({{ "%+.3f"|format(hm - hv) }})</div>
+        {% else %}
+        <div class="v muted">—</div><div class="n">Not yet evaluated</div>
+        {% endif %}
+      </div>
+      {% set so = bt.score.seahawks_only %}
+      <div class="kpi">
+        <div class="k">Seattle games</div>
+        {% if so %}
+        <div class="v">{{ "%.0f"|format(so.accuracy * 100) }}%</div>
+        <div class="n">picked correctly · {{ so.n }} games · log-loss {{ "%.3f"|format(so.log_loss) }}</div>
+        {% else %}<div class="v muted">—</div><div class="n">No Seattle games in backtest</div>{% endif %}
+      </div>
+      <div class="kpi">
+        <div class="k">Edge vs Elo</div>
+        {% set de = bt.score.elo.log_loss - bt.score.model.log_loss %}
+        <div class="v {{ 'pos' if de > 0 else 'neg' }}">{{ "%+.3f"|format(de) }}</div>
+        <div class="n">log-loss improvement over the Elo baseline</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:22px">
+      <div>
+        <h3 class="eyebrow" style="margin-bottom:4px">Calibration</h3>
+        <p class="sub" style="margin-bottom:8px">Predicted vs actual home-win rate per probability bin. Dot size = games.</p>
+        <div class="chart tall"><canvas id="calibration" role="img" aria-label="Calibration chart"></canvas></div>
+      </div>
+      <div>
+        <h3 class="eyebrow" style="margin-bottom:4px">Log-loss by season</h3>
+        <p class="sub" style="margin-bottom:8px">Model log-loss in each backtest season.</p>
+        <div class="legend"><span><i class="dot"></i>Model</span><span><i class="dash"></i>Vegas (overall)</span><span><i class="dash coin"></i>Coin flip (0.693)</span></div>
+        {% if bt.score.per_season %}
+        <div class="chart tall"><canvas id="perseason" role="img" aria-label="Log-loss by season"></canvas></div>
+        {% else %}<div class="empty"><strong>No per-season data</strong></div>{% endif %}
+      </div>
+    </div>
+    {% else %}
+    <h2 id="rep-h">Backtest pending</h2>
+    <div class="empty"><strong>No model report yet</strong>The walk-forward backtest has not been run. Its log-loss, calibration and baselines will appear here.</div>
     {% endif %}
-    <div class="chart"><canvas id="calibration"></canvas></div>
   </section>
-  {% endif %}
-  <p class="muted">Data: <a href="https://github.com/nflverse">nflverse</a> ·
-    weather by <a href="https://open-meteo.com/">Open-Meteo</a>. An analytical model, not betting advice.</p>
-</main>
+
+  <footer>
+    <span>Data: <a href="https://github.com/nflverse">nflverse</a> · weather by <a href="https://open-meteo.com/">Open-Meteo</a>.</span>
+    <span><strong>An analytical model, not betting advice.</strong> Not affiliated with the NFL or any team.</span>
+  </footer>
+</div>
+
 <script>
 const DATA = {{ data_json|safe }};
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-Chart.defaults.color = css("--muted");
-Chart.defaults.borderColor = css("--line");
-if (DATA.next_game) {
-  const t = DATA.next_game.trajectory;
-  new Chart(document.getElementById("trajectory"), {
-    type: "line",
-    data: { labels: t.map(r => r.run_type),
-      datasets: [
-        { label: "Model", data: t.map(r => r.p_seahawks * 100), borderColor: css("--navy"), backgroundColor: css("--navy"), tension: 0 },
-        { label: "Vegas (benchmark)", data: t.map(r => r.p_vegas_seahawks == null ? null : r.p_vegas_seahawks * 100),
-          borderColor: css("--grey"), backgroundColor: css("--grey"), borderDash: [4, 4], tension: 0 },
-      ] },
-    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "Seahawks win %" } } } },
+(function () {
+  const TZ = "America/Los_Angeles";
+  const fmts = {
+    kick: { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" },
+    stamp: { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" },
+    date: { month: "short", day: "numeric", year: "numeric" },
+  };
+  document.querySelectorAll("[data-utc]").forEach(el => {
+    const d = new Date(el.dataset.utc);
+    if (isNaN(d)) return;
+    try { el.textContent = new Intl.DateTimeFormat("en-US", { timeZone: TZ, ...fmts[el.dataset.fmt] }).format(d); } catch (e) { /* keep UTC fallback */ }
   });
-}
-if (DATA.backtest) {
-  const cal = DATA.backtest.score.model.calibration;
-  new Chart(document.getElementById("calibration"), {
-    type: "scatter",
-    data: { datasets: [
-      { label: "Model (by predicted-probability bin)", data: cal.map(b => ({ x: b.mean_pred * 100, y: b.mean_outcome * 100 })),
-        backgroundColor: css("--navy"), pointRadius: 5 },
-      { label: "Perfect calibration", type: "line", data: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
-        borderColor: css("--grey"), borderDash: [4, 4], pointRadius: 0 },
-    ] },
-    options: { maintainAspectRatio: false,
-      scales: { x: { min: 0, max: 100, title: { display: true, text: "Predicted home win %" } },
-                y: { min: 0, max: 100, title: { display: true, text: "Actual home win %" } } } },
+  document.querySelectorAll("[data-countdown]").forEach(el => {
+    const ms = new Date(el.dataset.countdown) - new Date();
+    if (!(ms > 0)) return;
+    const h = Math.round(ms / 36e5);
+    el.textContent = h >= 48 ? `In ${Math.round(h / 24)} days` : h >= 1 ? `In ${h} hr` : "Soon";
+    el.hidden = false;
   });
-}
+})();
+
+(function () {
+  if (typeof Chart === "undefined") return;
+  const RUNS = ["midweek", "final_injury", "gameday"];
+  const RUN_LABELS = { midweek: "Midweek", final_injury: "Final injury", gameday: "Gameday" };
+  const charts = [];
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  function draw() {
+    charts.splice(0).forEach(c => c.destroy());
+    const ink = css("--ink"), muted = css("--muted"), grid = css("--chart-grid"), green = css("--pos-fill"), wolf = css("--wolf");
+    Chart.defaults.color = muted;
+    Chart.defaults.borderColor = grid;
+    Chart.defaults.font.family = css("--body");
+    Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.plugins.tooltip.backgroundColor = "#00152b";
+    Chart.defaults.plugins.tooltip.borderColor = "rgba(165,172,175,.4)";
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.titleColor = "#fff";
+    Chart.defaults.plugins.tooltip.bodyColor = "#fff";
+    const axisTitle = text => ({ display: true, text, color: muted, font: { size: 12 } });
+
+    const traj = document.getElementById("trajectory");
+    if (DATA.next_game && traj) {
+      const byRun = {};
+      DATA.next_game.trajectory.forEach(r => { byRun[r.run_type] = r; });
+      const model = RUNS.map(k => byRun[k] ? byRun[k].p_seahawks * 100 : null);
+      const vegas = RUNS.map(k => byRun[k] && byRun[k].p_vegas_seahawks != null ? byRun[k].p_vegas_seahawks * 100 : null);
+      const vals = model.concat(vegas).filter(v => v != null).concat([50]);
+      const lo = Math.max(0, Math.floor((Math.min(...vals) - 8) / 10) * 10);
+      const hi = Math.min(100, Math.ceil((Math.max(...vals) + 8) / 10) * 10);
+      charts.push(new Chart(traj, {
+        type: "line",
+        data: { labels: RUNS.map(k => RUN_LABELS[k]), datasets: [
+          { label: "Model", data: model, borderColor: green, backgroundColor: green, borderWidth: 3, pointRadius: 6,
+            pointHoverRadius: 8, pointBorderColor: css("--surface"), pointBorderWidth: 2, spanGaps: true, tension: 0 },
+          { label: "Vegas (benchmark)", data: vegas, borderColor: wolf, backgroundColor: wolf, borderDash: [6, 5],
+            borderWidth: 2, pointRadius: 4, pointStyle: "rectRot", spanGaps: true, tension: 0 },
+          { label: "Toss-up", data: RUNS.map(() => 50), borderColor: muted, borderWidth: 1, borderDash: [2, 4],
+            pointRadius: 0, pointHoverRadius: 0, tooltip: false },
+        ] },
+        options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          plugins: { tooltip: { filter: i => i.datasetIndex < 2 && i.raw != null,
+            callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` } } },
+          scales: { y: { min: lo, max: hi, ticks: { callback: v => v + "%" }, title: axisTitle("Seahawks win %") },
+                    x: { grid: { display: false }, ticks: { color: ink } } } },
+      }));
+    }
+
+    const bt = DATA.backtest;
+    const cal = document.getElementById("calibration");
+    if (bt && cal) {
+      const bins = bt.score.model.calibration || [];
+      const nmax = Math.max(1, ...bins.map(b => b.n));
+      charts.push(new Chart(cal, {
+        type: "scatter",
+        data: { datasets: [
+          { label: "Perfect calibration", type: "line", data: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+            borderColor: wolf, borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0 },
+          { label: "Model", data: bins.map(b => ({ x: b.mean_pred * 100, y: b.mean_outcome * 100, n: b.n })),
+            backgroundColor: green + "cc", borderColor: green, borderWidth: 1.5,
+            pointRadius: bins.map(b => 3 + 9 * Math.sqrt(b.n / nmax)), pointHoverRadius: bins.map(b => 5 + 9 * Math.sqrt(b.n / nmax)) },
+        ] },
+        options: { maintainAspectRatio: false,
+          plugins: { tooltip: { filter: i => i.datasetIndex === 1, callbacks: { label: c =>
+            ` predicted ${c.parsed.x.toFixed(0)}% → actual ${c.parsed.y.toFixed(0)}% (${c.raw.n} games)` } } },
+          scales: { x: { min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + "%" }, title: axisTitle("Predicted home win %") },
+                    y: { min: 0, max: 100, ticks: { stepSize: 20, callback: v => v + "%" }, title: axisTitle("Actual home win %") } } },
+      }));
+    }
+
+    const ps = document.getElementById("perseason");
+    if (bt && ps && bt.score.per_season && bt.score.per_season.length) {
+      const rows = bt.score.per_season;
+      const vegasLL = bt.score.vegas.log_loss, coin = Math.log(2);
+      const lls = rows.map(r => r.log_loss);
+      const ymin = Math.floor((Math.min(...lls, vegasLL) - 0.02) * 50) / 50;
+      const ymax = Math.ceil((Math.max(...lls, coin) + 0.01) * 50) / 50;
+      charts.push(new Chart(ps, {
+        data: { labels: rows.map(r => String(r.season)), datasets: [
+          { type: "bar", label: "Model log-loss", data: lls,
+            backgroundColor: green, borderRadius: 2, maxBarThickness: 28 },
+          { type: "line", label: "Vegas (overall)", data: rows.map(() => vegasLL), borderColor: wolf, borderDash: [6, 4],
+            borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0 },
+          { type: "line", label: "Coin flip", data: rows.map(() => coin), borderColor: css("--neg"), borderDash: [2, 4],
+            borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 0 },
+        ] },
+        options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          plugins: { tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(3)}` } } },
+          scales: { y: { min: ymin, max: ymax, ticks: { callback: v => v.toFixed(2) }, title: axisTitle("Log-loss (lower is better)") },
+                    x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 6 } } } },
+      }));
+    }
+  }
+  draw();
+  const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)");
+  if (mq && mq.addEventListener) mq.addEventListener("change", draw);
+})();
 </script>
 </body>
 </html>

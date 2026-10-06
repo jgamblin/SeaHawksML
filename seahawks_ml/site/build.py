@@ -74,6 +74,8 @@ def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PAT
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
-    html = env.get_template("index.html.j2").render(data=data, data_json=json.dumps(data, default=str))
+    # Escape "<" so no string in the data can close the inline <script> block.
+    data_json = json.dumps(data, default=str).replace("<", "\\u003c")
+    html = env.get_template("index.html.j2").render(data=data, data_json=data_json)
     (out_dir / "index.html").write_text(html)
     return out_dir / "index.html"
