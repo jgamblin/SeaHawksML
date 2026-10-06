@@ -47,6 +47,16 @@ season" card scores model vs Vegas vs Elo on those fresh, never-edited predictio
 The live Vegas benchmark uses the spread nflverse has about 6-24 hours before kickoff, which
 is not necessarily the closing line.
 
+Season simulation: once per UTC day in season (on the first hourly run, or whenever the
+job loads data), the rest of the regular season is simulated 10,000 times. Completed
+games keep their results; each remaining game is an independent coin flip weighted by the
+current model's home-win probability (team strength is not resampled). Standings use
+simplified tiebreakers (win %, head-to-head, division %, conference %, coin flip) to pick
+4 division winners and 3 wild cards per conference. Seattle's projected wins, win-total
+distribution, P(playoffs), P(division) and P(#1 seed) are appended to
+`predictions/season_sim.jsonl` (at most one snapshot per day) and shown in the dashboard's
+"Season outlook" card. Run it by hand with `uv run python -m seahawks_ml.cli simulate`.
+
 Manual run: `uv run python -m seahawks_ml.cli predict --run-type midweek`
 
 ## First-time GitHub setup
