@@ -105,3 +105,26 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
         players=pl.DataFrame(players, schema=PLAYERS_SCHEMA),
         weather=pl.DataFrame(weather, schema=WEATHER_SCHEMA).unique(["stadium_id", "time_utc"]),
     )
+
+
+def make_feature_frame(seasons=range(2009, 2016), games_per_season=120, seed=0) -> pl.DataFrame:
+    """Model-ready feature frame where elo_diff and qb_epa_diff drive the margin."""
+    import numpy as np
+
+    from seahawks_ml.features.columns import FEATURE_COLUMNS
+
+    rng = np.random.default_rng(seed)
+    rows = []
+    for season in seasons:
+        for i in range(games_per_season):
+            feats = {c: 0.0 for c in FEATURE_COLUMNS}
+            feats["elo_diff"] = rng.normal(0, 80)
+            feats["qb_epa_diff"] = rng.normal(0, 0.1)
+            feats["home_field"] = 1.0
+            margin = round(feats["elo_diff"] / 25 + 30 * feats["qb_epa_diff"] + 1.5 + rng.normal(0, 13))
+            rows.append({"game_id": f"{season}_{i:03d}", "season": season, "margin": margin,
+                         "home_team": "SEA" if i % 8 == 0 else "SF", "away_team": "LA",
+                         "neutral": False, "elo_home_pre": 1500 + feats["elo_diff"],
+                         "elo_away_pre": 1500.0,
+                         "spread_line": round(2 * (feats["elo_diff"] / 25 + 1.5)) / 2, **feats})
+    return pl.DataFrame(rows)
