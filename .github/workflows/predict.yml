@@ -26,7 +26,7 @@ on:
       - "models/holdout.json"
 
 concurrency:
-  group: repo-writes
+  group: ${{ (github.event_name == 'push' || inputs.publish_only) && 'publish' || 'repo-writes' }}
   cancel-in-progress: false
 
 jobs:
