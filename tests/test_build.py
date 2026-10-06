@@ -85,19 +85,48 @@ def test_availability_modes_use_one_representation(stadiums):
         assert frame["availability_known"].to_list() == count["availability_known"].to_list()
 
 
-@pytest.mark.parametrize("params,avail", [*[(p, AvailabilityParams()) for p in RATING_VARIANTS],
-                                          *[(RatingParams(), a) for a in AVAIL_VARIANTS[1:]]])
-@pytest.mark.parametrize("row_index", [10, 30, 40, 45])
-def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index, params, avail):
-    """Features for a game must be identical whether or not later data exists."""
-    raw = make_raw()
-    target = raw.games.row(row_index, named=True)
+def _assert_no_leakage(raw, stadiums, target, params, avail):
     full = build_features(raw, stadiums, params, availability_params=avail).filter(
         pl.col("game_id") == target["game_id"])
     cut = build_features(raw.as_of(target["kickoff_utc"]), stadiums, params, availability_params=avail).filter(
         pl.col("game_id") == target["game_id"])
     for col in FEATURE_COLUMNS:
         assert full[col][0] == pytest.approx(cut[col][0]), col
+    return full.row(0, named=True)
+
+
+@pytest.mark.parametrize("params", RATING_VARIANTS)
+@pytest.mark.parametrize("row_index", [10, 30, 40, 45])
+def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index, params):
+    """Features for a game must be identical whether or not later data exists."""
+    raw = make_raw()
+    _assert_no_leakage(raw, stadiums, raw.games.row(row_index, named=True), params, AvailabilityParams())
+
+
+@pytest.mark.parametrize("avail", AVAIL_VARIANTS[1:])
+@pytest.mark.parametrize("row_index", [30, 40, 45])  # snap era (2013+), so availability is known
+def test_no_leakage_availability_modes(stadiums, row_index, avail):
+    """Same check for the group / player-value features. The tested game's reports are replaced by a
+    starting home WR listed Out (his value depends on his stats before kickoff), so the diff is not zero."""
+    from dataclasses import replace
+
+    from seahawks_ml.ingest.nflverse import INJURIES_SCHEMA
+
+    raw = make_raw()
+    target = raw.games.row(row_index, named=True)
+    week = {"season": target["season"], "week": target["week"]}
+    injected = pl.DataFrame([
+        week | {"team": target["home_team"], "gsis_id": f"{target['home_team']}-P0", "position": "WR",
+                "report_status": "Out"},
+        week | {"team": target["away_team"], "gsis_id": "x", "position": "LB", "report_status": "Questionable"},
+    ], schema=INJURIES_SCHEMA)
+    teams = [target["home_team"], target["away_team"]]
+    others = raw.injuries.filter(~((pl.col("season") == target["season"]) & (pl.col("week") == target["week"])
+                                   & pl.col("team").is_in(teams)))
+    raw = replace(raw, injuries=pl.concat([others, injected]))
+    row = _assert_no_leakage(raw, stadiums, target, RatingParams(), avail)
+    assert row["availability_known"] == 1
+    assert row["out_wrte_diff"] != 0.0
 
 
 def test_availability_known_requires_both_sides(stadiums, monkeypatch):
