@@ -1,12 +1,14 @@
 """League-wide live predictions (predictions/league.jsonl): one append-only prediction per game,
 made in the same window as the Seahawks final-injury run, plus result records and a scorecard."""
 
+import math
 from datetime import datetime
 
 import numpy as np
 import polars as pl
 
 from seahawks_ml.config import LEAGUE_PATH  # noqa: F401  (re-exported for callers)
+from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.features.elo import elo_win_prob
 from seahawks_ml.models.metrics import log_loss, outcome, summarize
 from seahawks_ml.models.pipeline import FittedModel
@@ -19,12 +21,27 @@ PREDICTION_KEYS = {
 RESULT_KEYS = {"type", "game_id", "recorded_at", "home_score", "away_score", "margin_home"}
 
 
+def _finite(x) -> bool:
+    return isinstance(x, int | float) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def _prob(x) -> bool:
+    return _finite(x) and 0 < x < 1
+
+
 def validate_league(record: dict) -> None:
     expected = {"league_prediction": PREDICTION_KEYS, "league_result": RESULT_KEYS}.get(record.get("type"))
     if expected is None:
         raise ValueError(f"unknown league record type {record.get('type')!r}")
     if set(record) != expected:
         raise ValueError(f"record keys mismatch: missing {expected - set(record)}, extra {set(record) - expected}")
+    if record["type"] == "league_prediction":
+        if not _prob(record["p_home"]):
+            raise ValueError(f"p_home must be in (0, 1), got {record['p_home']!r}")
+        if not (_finite(record["margin_home"]) and _finite(record["p_elo_home"])):
+            raise ValueError("margin_home and p_elo_home must be finite numbers")
+        if record["p_vegas_home"] is not None and not _prob(record["p_vegas_home"]):
+            raise ValueError(f"p_vegas_home must be None or in (0, 1), got {record['p_vegas_home']!r}")
 
 
 def due_league_games(games: pl.DataFrame, now: datetime, logged_ids: set[str]) -> list[str]:
@@ -38,23 +55,44 @@ def make_league_predictions(frame_rows: pl.DataFrame, model: FittedModel, now: d
                             model_version: str) -> list[dict]:
     if not frame_rows.height:
         return []
+    cols = [pl.col(c).cast(pl.Float64) for c in FEATURE_COLUMNS]
+    bad_row = frame_rows.select(pl.any_horizontal(*[c.is_null() | c.is_nan() | c.is_infinite() for c in cols]))
+    unusable = set(frame_rows.filter(bad_row.to_series())["game_id"].to_list())
+    if unusable:
+        print(f"league: skipping games with missing/non-finite features (retry next hour): {sorted(unusable)}")
+        frame_rows = frame_rows.filter(~pl.col("game_id").is_in(list(unusable)))
+        if not frame_rows.height:
+            return []
     out = model.predict(frame_rows)
     spreads = frame_rows["spread_line"].to_list()
-    known = [s is not None for s in spreads]
+    known = [s is not None and math.isfinite(s) for s in spreads]
     vegas = np.full(len(spreads), np.nan)
     if any(known):
-        vegas[known] = model.vegas_prob(np.array([s for s in spreads if s is not None], dtype=float))
+        vegas[known] = model.vegas_prob(np.array([s for s, k in zip(spreads, known) if k], dtype=float))
     recs = []
     for i, g in enumerate(frame_rows.iter_rows(named=True)):
+        if g["elo_home_pre"] is None or g["elo_away_pre"] is None:
+            print(f"league: skipping {g['game_id']}: missing Elo (retry next hour)")
+            continue
         elo = elo_win_prob(g["elo_home_pre"] - g["elo_away_pre"], g["neutral"])
-        recs.append({
+        values = [out["p_win"][i], out["margin"][i], elo] + ([vegas[i]] if known[i] else [])
+        if not all(math.isfinite(float(v)) for v in values):
+            print(f"league: skipping {g['game_id']}: non-finite model output (retry next hour)")
+            continue
+        rec = {
             "type": "league_prediction", "game_id": g["game_id"], "season": g["season"], "week": g["week"],
             "predicted_at": now.isoformat(), "kickoff_utc": g["kickoff_utc"].isoformat(),
             "home_team": g["home_team"], "away_team": g["away_team"],
             "p_home": round(float(out["p_win"][i]), 4), "margin_home": round(float(out["margin"][i]), 2),
             "p_vegas_home": round(float(vegas[i]), 4) if known[i] else None,
             "p_elo_home": round(float(elo), 4), "model_version": model_version,
-        })
+        }
+        try:
+            validate_league(rec)  # e.g. a probability that rounds to exactly 0 or 1
+        except ValueError as exc:
+            print(f"league: skipping {g['game_id']}: {exc} (retry next hour)")
+            continue
+        recs.append(rec)
     return recs
 
 

@@ -68,6 +68,31 @@ def test_validate_rejects_bad_keys():
         validate_league({"type": "nope"})
 
 
+def test_validate_rejects_non_finite_or_out_of_range():
+    base = _pred("g0", 1, .6, .55, .5)
+    validate_league(base)
+    validate_league({**base, "p_vegas_home": None})
+    for key, bad in [("p_home", 0.0), ("p_home", 1.0), ("p_home", float("nan")), ("margin_home", float("nan")),
+                     ("margin_home", float("inf")), ("p_elo_home", float("nan")), ("p_elo_home", None),
+                     ("p_vegas_home", float("nan")), ("p_vegas_home", 1.0), ("p_vegas_home", 0.0)]:
+        with pytest.raises(ValueError):
+            validate_league({**base, key: bad})
+
+
+def test_make_league_predictions_skips_non_finite(model_and_frame, capsys):
+    from seahawks_ml.features.columns import FEATURE_COLUMNS
+    model, rows = model_and_frame
+    col = FEATURE_COLUMNS[0]
+    ids = rows["game_id"].to_list()
+    bad = rows.with_columns(pl.when(pl.col("game_id") == ids[0]).then(None).otherwise(pl.col(col)).alias(col))
+    recs = make_league_predictions(bad, model, KICK - timedelta(hours=12), "v1")
+    assert [r["game_id"] for r in recs] == ids[1:]
+    assert ids[0] in capsys.readouterr().out
+    nan = rows.with_columns(pl.when(pl.col("game_id") == ids[1]).then(float("nan")).otherwise(pl.col(col))
+                            .cast(pl.Float64).alias(col))
+    assert [r["game_id"] for r in make_league_predictions(nan, model, KICK, "v1")] == [ids[0], ids[2]]
+
+
 def _pred(gid, week, p, vegas, elo, season=2026):
     return {"type": "league_prediction", "game_id": gid, "season": season, "week": week,
             "predicted_at": "2026-10-10T12:00:00+00:00", "kickoff_utc": "2026-10-11T17:00:00+00:00",
