@@ -21,7 +21,7 @@ Outputs per team (home_/away_ prefix):
     / per carry over all seasons before the game's season; replacement = the 25th percentile
     of player-season EPA per target / per carry over those seasons among player-seasons with
     >= 20 targets / carries (the mean when none qualify).
-  - OL, DL, LB, DB: lineman_quality[draft bucket] x (1 - w + w x durability), where
+  - OL, DL, LB, DB: lineman_quality(draft bucket) x (1 - w + w x durability), where
     durability is the player's mean share of the team's snaps over its previous 8 games
     (0 for games he missed) and w is `durability_weight`. Draft round is known at draft
     time, so it does not leak.
@@ -29,7 +29,8 @@ Outputs per team (home_/away_ prefix):
 
 from bisect import bisect_left
 from collections import defaultdict
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import polars as pl
@@ -59,8 +60,10 @@ REPLACEMENT_MIN_OPPS = 20  # targets (carries) for a player-season to count towa
 DURABILITY_GAMES = 8
 
 
-def _default_lineman_quality() -> dict[str, float]:
-    return {"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9}
+DRAFT_BUCKETS = ("round_1", "day_2", "later", "udfa")
+# (draft bucket, quality) pairs: a tuple so AvailabilityParams stays immutable and hashable
+LinemanQuality = tuple[tuple[str, float], ...]
+DEFAULT_LINEMAN_QUALITY: LinemanQuality = (("round_1", 1.3), ("day_2", 1.1), ("later", 1.0), ("udfa", 0.9))
 
 
 @dataclass(frozen=True)
@@ -76,12 +79,25 @@ class AvailabilityParams:
     mode: str = "count"
     prior_opps: float = 60.0
     quality_scale: float = 4.0
-    lineman_quality: dict[str, float] = field(default_factory=_default_lineman_quality)
+    lineman_quality: LinemanQuality = DEFAULT_LINEMAN_QUALITY
     durability_weight: float = 0.5
 
     def __post_init__(self):
         if self.mode not in AVAILABILITY_MODES:
             raise ValueError(f"unknown availability mode {self.mode!r}")
+        # accept a mapping or (bucket, quality) pairs (as JSON lists), store immutable pairs
+        lq: Mapping | Iterable = self.lineman_quality
+        pairs = tuple((str(k), float(v)) for k, v in (lq.items() if isinstance(lq, Mapping) else lq))
+        if sorted(k for k, _ in pairs) != sorted(DRAFT_BUCKETS):
+            raise ValueError(f"lineman_quality needs exactly the buckets {DRAFT_BUCKETS}, got {pairs}")
+        object.__setattr__(self, "lineman_quality", pairs)
+
+    def lineman_weight(self, bucket: str) -> float:
+        return dict(self.lineman_quality)[bucket]
+
+    def to_dict(self) -> dict:
+        """JSON-ready form; lineman_quality as an object, which the constructor accepts back."""
+        return {**asdict(self), "lineman_quality": dict(self.lineman_quality)}
 
 
 def position_group(position: str | None) -> str | None:
@@ -221,7 +237,7 @@ def compute_availability(
         if group in SKILL_STAT_GROUPS:
             return skill.quality(gsis, group, game["season"], game["kickoff_utc"], params)
         info = player_info.get(gsis)
-        base = params.lineman_quality[draft_bucket(info["draft_round"] if info else None)]
+        base = params.lineman_weight(draft_bucket(info["draft_round"] if info else None))
         w = params.durability_weight
         return max(0.0, base * (1 - w + w * durability(team, prior, gsis, group in OFFENSE_GROUPS)))
 

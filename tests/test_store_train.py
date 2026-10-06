@@ -65,6 +65,16 @@ def test_old_config_without_availability_means_count(tmp_path):
     assert load_config(tmp_path / "c.json").availability.mode == "count"
 
 
+def test_saved_config_lineman_quality_stays_a_json_object(tmp_path):
+    import json
+
+    save_config(ProjectConfig(), tmp_path / "c.json")
+    saved = json.loads((tmp_path / "c.json").read_text())
+    assert saved["availability"]["lineman_quality"] == {"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9}
+    # a trained model's metadata (read back from JSON) still matches the config
+    assert saved == ProjectConfig().to_dict()
+
+
 def test_completed_seasons_skips_unplayed():
     frame = make_feature_frame(seasons=range(2009, 2013)).with_columns(
         pl.when(pl.col("season") == 2012).then(None).otherwise(pl.col("margin")).alias("margin"))

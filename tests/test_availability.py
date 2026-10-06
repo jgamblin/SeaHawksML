@@ -249,3 +249,24 @@ def test_values_mode_linemen_use_draft_bucket_and_durability():
     snaps = raw.snaps.filter(~((pl.col("pfr_player_id") == f"{team}P005") & (pl.col("season") == 2013)))
     row = _row(raw, _home_injuries(game, {5: "Out"}), params, snaps=snaps)
     assert row["home_out_lb"] == pytest.approx(0.9 * 1.3 * (0.5 + 0.5 * 0.45))
+
+
+def test_availability_params_are_hashable_and_lineman_quality_immutable():
+    default = AvailabilityParams()
+    assert hash(default) == hash(AvailabilityParams())
+    assert default.lineman_quality == (("round_1", 1.3), ("day_2", 1.1), ("later", 1.0), ("udfa", 0.9))
+    assert isinstance(default.lineman_quality, tuple)
+    # a mapping (old configs, JSON) is normalized to the same immutable form
+    as_dict = AvailabilityParams(lineman_quality={"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9})
+    assert as_dict == default and hash(as_dict) == hash(default)
+    as_lists = AvailabilityParams(lineman_quality=[["round_1", 1.5], ["day_2", 1.2], ["later", 1.0], ["udfa", 0.8]])
+    assert dict(as_lists.lineman_quality) == {"round_1": 1.5, "day_2": 1.2, "later": 1.0, "udfa": 0.8}
+    assert {default, as_dict, as_lists} == {default, as_lists}
+    with pytest.raises(ValueError):
+        AvailabilityParams(lineman_quality={"round_1": 1.3})
+
+
+def test_availability_params_to_dict_keeps_lineman_quality_a_json_object():
+    d = AvailabilityParams(mode="values").to_dict()
+    assert d["lineman_quality"] == {"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9}
+    assert AvailabilityParams(**d) == AvailabilityParams(mode="values")

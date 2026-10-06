@@ -116,13 +116,13 @@ def cmd_backtest(args) -> None:
         config = best[0]
         print("stage 0c: injury availability (starters out / position groups / player values)")
         print(f"  {best[1]:.5f}  {config.availability}")
-        feature_trials.append({"stage": "availability", "availability": asdict(config.availability),
+        feature_trials.append({"stage": "availability", "availability": config.availability.to_dict(),
                                "log_loss": best[1]})
         for mode, prior_opps, scale in AVAILABILITY_GRID:
             cand = replace(config, availability=AvailabilityParams(mode, prior_opps, scale))
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.availability}")
-            feature_trials.append({"stage": "availability", "availability": asdict(cand.availability),
+            feature_trials.append({"stage": "availability", "availability": cand.availability.to_dict(),
                                    "log_loss": ll})
             if ll < best[1]:
                 best = (cand, ll)

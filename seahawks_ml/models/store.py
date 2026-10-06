@@ -29,7 +29,7 @@ class ProjectConfig:
 
     def to_dict(self) -> dict:
         return {"model": self.model.to_dict(), "rating": asdict(self.rating), "qb": asdict(self.qb),
-                "availability": asdict(self.availability)}
+                "availability": self.availability.to_dict()}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectConfig":
