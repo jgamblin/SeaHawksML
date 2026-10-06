@@ -22,6 +22,8 @@ def test_availability_weights_out_starters_by_snap_share():
         base | {"gsis_id": f"{team}-P0", "position": "WR", "report_status": "Out"},
         base | {"gsis_id": f"{team}-P7", "position": "LB", "report_status": "Doubtful"},
         base | {"gsis_id": f"{team}-P8", "position": "LB", "report_status": "Questionable"},
+        {"season": 2014, "week": 5, "team": game["away_team"], "gsis_id": "x", "position": "LB",
+         "report_status": "Questionable"},
     ], schema=INJURIES_SCHEMA)
     out = compute_availability(raw.games, raw.snaps, injuries, raw.players)
     row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
@@ -42,3 +44,14 @@ def test_snaps_with_null_position_are_kept():
     out = compute_availability(raw.games, snaps, injuries, raw.players)
     row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
     assert row["home_off_out"] == pytest.approx(0.9)
+
+
+def test_no_injury_report_rows_means_unknown_not_zero():
+    raw = make_raw()
+    game = raw.games.filter((pl.col("season") == 2014) & (pl.col("week") == 5)).row(0, named=True)
+    injuries = raw.injuries.filter(~((pl.col("season") == 2014) & (pl.col("week") == 5)
+                                     & (pl.col("team") == game["home_team"])))
+    out = compute_availability(raw.games, raw.snaps, injuries, raw.players)
+    row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
+    assert row["home_off_out"] is None and row["home_def_out"] is None
+    assert row["away_off_out"] is not None

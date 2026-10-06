@@ -4,7 +4,8 @@ A "starter" is a non-QB who averaged >= 50% of offense (or defense) snaps in the
 games he appeared in among his team's previous `lookback` games (min 2 appearances).
 The feature is the snap-share-weighted count of starters listed Out or Doubtful.
 QBs are excluded because the QB features already handle starter changes.
-Null before the first season with snap counts.
+Null before the first season with snap counts, and null for a team-week with no injury
+report rows at all (the report is not out yet, so availability is unknown, not zero).
 """
 
 from collections import defaultdict
@@ -38,12 +39,16 @@ def compute_availability(
     for team, game_id in sorted(team_game_snaps, key=lambda k: kickoff[k[1]]):
         team_history[team].append(game_id)
 
+    reported = {(r["season"], r["week"], r["team"])
+                for r in injuries.select("season", "week", "team").unique().iter_rows(named=True)}
     out_lists: dict[tuple[int, int, str], set[str]] = defaultdict(set)
     for r in injuries.filter(pl.col("report_status").is_in(list(OUT_STATUSES))).iter_rows(named=True):
         out_lists[(r["season"], r["week"], r["team"])].add(r["gsis_id"])
 
     def team_out(team: str, game: dict) -> tuple[float | None, float | None]:
         if game["season"] < FIRST_SNAP_SEASON:
+            return None, None
+        if (game["season"], game["week"], team) not in reported:
             return None, None
         prior = [gid for gid in team_history.get(team, []) if kickoff[gid] < game["kickoff_utc"]]
         recent = prior[-lookback:]
