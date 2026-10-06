@@ -14,6 +14,7 @@ FEATURE_COLUMNS = [
     "home_new_coach", "away_new_coach",
     # availability
     "home_off_out", "home_def_out", "away_off_out", "away_def_out", "availability_known",
+    "out_ol_diff", "out_wrte_diff", "out_rb_diff", "out_dl_diff", "out_lb_diff", "out_db_diff",
     # situational
     "rest_diff", "home_post_bye", "away_post_bye", "home_short_week", "away_short_week",
     "travel_diff", "home_tz_shift", "away_tz_shift", "home_body_clock", "away_body_clock",

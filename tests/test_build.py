@@ -1,6 +1,7 @@
 import polars as pl
 import pytest
 
+from seahawks_ml.features.availability import AvailabilityParams
 from seahawks_ml.features.build import build_features
 from seahawks_ml.features.columns import FEATURE_COLUMNS, ID_COLUMNS
 from seahawks_ml.features.ratings import RatingParams
@@ -53,14 +54,47 @@ def test_extra_stat_columns_toggle(stadiums):
     assert on["off_rating_diff"].to_list() == off["off_rating_diff"].to_list()
 
 
-@pytest.mark.parametrize("params", RATING_VARIANTS)
-@pytest.mark.parametrize("row_index", [10, 30, 45])
-def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index, params):
+OLD_AVAIL = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]
+GROUP_DIFFS = ["out_ol_diff", "out_wrte_diff", "out_rb_diff", "out_dl_diff", "out_lb_diff", "out_db_diff"]
+AVAIL_VARIANTS = [AvailabilityParams(mode=m) for m in ("count", "groups", "values")]
+
+
+def test_availability_modes_use_one_representation(stadiums):
+    raw = make_raw()
+    assert set(OLD_AVAIL + GROUP_DIFFS) <= set(FEATURE_COLUMNS)
+    count, groups, values = (build_features(raw, stadiums, availability_params=p) for p in AVAIL_VARIANTS)
+    assert count.columns == groups.columns == values.columns
+    for c in GROUP_DIFFS:
+        assert (count[c] == 0.0).all(), c
+    for c in OLD_AVAIL:
+        assert (groups[c] == 0.0).all() and (values[c] == 0.0).all(), c
+    assert sum(count[c].abs().sum() for c in OLD_AVAIL) > 0
+    for c in ("out_wrte_diff", "out_lb_diff"):  # synthetic injuries never hit the RB
+        assert groups[c].abs().sum() > 0, c
+        assert values[c].to_list() != groups[c].to_list(), c
+    # home minus away of the per-team group weights
+    from seahawks_ml.features.availability import compute_availability
+
+    av = compute_availability(raw.games, raw.snaps, raw.injuries, raw.players, raw.player_stats,
+                              AVAIL_VARIANTS[1])
+    joined = groups.join(av, on="game_id").filter(pl.col("home_out_wrte").is_not_null()
+                                                   & pl.col("away_out_wrte").is_not_null())
+    assert joined.height > 0
+    assert (joined["out_wrte_diff"] - (joined["home_out_wrte"] - joined["away_out_wrte"])).abs().max() < 1e-12
+    for frame in (count, groups, values):
+        assert frame["availability_known"].to_list() == count["availability_known"].to_list()
+
+
+@pytest.mark.parametrize("params,avail", [*[(p, AvailabilityParams()) for p in RATING_VARIANTS],
+                                          *[(RatingParams(), a) for a in AVAIL_VARIANTS[1:]]])
+@pytest.mark.parametrize("row_index", [10, 30, 40, 45])
+def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index, params, avail):
     """Features for a game must be identical whether or not later data exists."""
     raw = make_raw()
     target = raw.games.row(row_index, named=True)
-    full = build_features(raw, stadiums, params).filter(pl.col("game_id") == target["game_id"])
-    cut = build_features(raw.as_of(target["kickoff_utc"]), stadiums, params).filter(
+    full = build_features(raw, stadiums, params, availability_params=avail).filter(
+        pl.col("game_id") == target["game_id"])
+    cut = build_features(raw.as_of(target["kickoff_utc"]), stadiums, params, availability_params=avail).filter(
         pl.col("game_id") == target["game_id"])
     for col in FEATURE_COLUMNS:
         assert full[col][0] == pytest.approx(cut[col][0]), col
