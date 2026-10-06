@@ -1,6 +1,6 @@
 {
-  "model_version": "20261006-20de6aa0",
-  "trained_at": "2026-10-06T13:49:59.001515+00:00",
+  "model_version": "20261006-13df2d7b",
+  "trained_at": "2026-10-06T15:45:26.141462+00:00",
   "train_seasons": [
     2009,
     2010,
@@ -26,7 +26,7 @@
     "model": {
       "kind": "ridge",
       "params": {
-        "alpha": 100.0
+        "alpha": 300.0
       },
       "half_life": 12.0,
       "prob_method": "gaussian",
@@ -39,7 +39,9 @@
     "rating": {
       "prior_regression": 0.6,
       "prior_games": 6.0,
-      "prior_games_new_coach": 2.0
+      "prior_games_new_coach": 2.0,
+      "opponent_adjust": false,
+      "extra_stats": true
     },
     "qb": {
       "prior_dropbacks": 150.0,
@@ -53,6 +55,12 @@
     "elo_diff",
     "off_rating_diff",
     "def_rating_diff",
+    "pass_off_diff",
+    "pass_def_diff",
+    "rush_off_diff",
+    "rush_def_diff",
+    "success_off_diff",
+    "success_def_diff",
     "qb_epa_diff",
     "qb_cpoe_diff",
     "home_qb_round_1",

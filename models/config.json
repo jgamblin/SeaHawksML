@@ -2,7 +2,7 @@
   "model": {
     "kind": "ridge",
     "params": {
-      "alpha": 100.0
+      "alpha": 300.0
     },
     "half_life": 12.0,
     "prob_method": "gaussian",
@@ -15,7 +15,9 @@
   "rating": {
     "prior_regression": 0.6,
     "prior_games": 6.0,
-    "prior_games_new_coach": 2.0
+    "prior_games_new_coach": 2.0,
+    "opponent_adjust": false,
+    "extra_stats": true
   },
   "qb": {
     "prior_dropbacks": 150.0,
