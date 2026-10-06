@@ -144,7 +144,7 @@ def cmd_predict(args) -> None:
     from seahawks_ml.models.store import METRICS_PATH, check_model_matches, load_config, load_model
     from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
     from seahawks_ml.pipeline.history import append_record, read_history, runs_done
-    from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction
+    from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
     from seahawks_ml.pipeline.results import new_results
     from seahawks_ml.stadiums import load_stadiums
 
@@ -181,7 +181,7 @@ def cmd_predict(args) -> None:
         forecast = forecast_for_games(target, stadiums)
         raw = replace(raw, weather=pl.concat([raw.weather, forecast]).unique(["stadium_id", "time_utc"], keep="last"))
     frame = _build(raw, stadiums, config)
-    row = frame.filter(pl.col("game_id") == game["game_id"])
+    row = single_game_row(frame, game["game_id"])
     model = load_model()
     metrics = json.loads(METRICS_PATH.read_text())
     check_model_matches(metrics, config)

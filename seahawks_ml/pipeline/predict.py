@@ -24,6 +24,14 @@ def latest_injury_week(injuries: pl.DataFrame, season: int, team: str = TEAM) ->
     return int(weeks.max()) if weeks.len() else None
 
 
+def single_game_row(frame: pl.DataFrame, game_id: str) -> pl.DataFrame:
+    """The one feature row for `game_id`; SystemExit with a clear message otherwise."""
+    row = frame.filter(pl.col("game_id") == game_id)
+    if row.height != 1:
+        raise SystemExit(f"expected exactly one feature row for {game_id}, got {row.height}")
+    return row
+
+
 def make_prediction(
     row: pl.DataFrame,
     model: FittedModel,

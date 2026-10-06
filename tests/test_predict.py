@@ -13,7 +13,7 @@ from seahawks_ml.pipeline.history import (
     scored_predictions,
     validate,
 )
-from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction
+from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
 from seahawks_ml.pipeline.results import new_results
 from seahawks_ml.stadiums import load_stadiums
 from tests.synthetic import make_raw
@@ -76,3 +76,13 @@ def test_final_injury_flag_requires_matching_week(setup):
     assert make_prediction(row, model, "gameday", now, "v1", week - 1)["is_final_injury_report"] is False
     assert make_prediction(row, model, "gameday", now, "v1", None)["is_final_injury_report"] is False
     assert make_prediction(row, model, "midweek", now, "v1", week)["is_final_injury_report"] is False
+
+
+def test_single_game_row(setup):
+    _, frame, _ = setup
+    gid = frame["game_id"][0]
+    assert single_game_row(frame, gid).height == 1
+    with pytest.raises(SystemExit, match="exactly one feature row"):
+        single_game_row(frame, "nope")
+    with pytest.raises(SystemExit, match="exactly one feature row"):
+        single_game_row(pl.concat([frame.head(1), frame.head(1)]), gid)
