@@ -16,6 +16,7 @@ SITE_DIR = ROOT / "public"
 FIRST_RATING_SEASON = 2002  # ratings warm up from here (32-team era)
 FIRST_TRAIN_SEASON = 2009  # first season with injury reports
 FIRST_SNAP_SEASON = 2013  # first season nflverse has snap counts
+FIRST_PLAYER_STATS_SEASON = 2012  # first season we cache weekly player stats
 BACKTEST_SEASONS = tuple(range(2012, 2024))
 HOLDOUT_SEASONS = (2024, 2025)
 

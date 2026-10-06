@@ -97,7 +97,9 @@ def test_current_season_fetch_failure_returns_empty_and_is_not_cached(monkeypatc
     monkeypatch.setattr(nv.nfl, "load_pbp", _boom)
     monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
     monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    monkeypatch.setattr(nv.nfl, "load_player_stats", _boom)
     out = nv.load_season_tables([2099], current_season=2099, cache_dir=tmp_path)
+    assert out["player_stats"].columns == list(nv.PLAYER_STATS_SCHEMA)
     assert all(df.height == 0 for df in out.values())
     assert list(tmp_path.glob("*.parquet")) == []
 
@@ -204,3 +206,56 @@ def test_load_teams_falls_back_to_constant(monkeypatch, capsys):
     monkeypatch.setattr(nv.nfl, "load_teams", lambda: pl.DataFrame(
         {"team_abbr": ["SEA"], "team_conf": ["NFC"], "team_division": ["NFC West"]}))
     assert nv.load_teams().height == 32
+
+
+def _player_stats_raw():
+    return pl.DataFrame({
+        "player_id": ["00-1", "00-2"], "player_name": ["A", "B"], "position_group": ["WR", "RB"],
+        "season": [2015, 2015], "week": [1, 1], "season_type": ["REG", "REG"],
+        "game_id": ["2015_01_SD_STL", "2015_01_SD_STL"], "team": ["STL", "SD"],
+        "targets": [5, 0], "receiving_epa": [1.5, None], "carries": [0, 12], "rushing_epa": [None, -2.0],
+    })
+
+
+def test_player_stats_cached_per_season_with_normalized_teams(monkeypatch, tmp_path):
+    import seahawks_ml.ingest.nflverse as nv
+
+    calls = []
+
+    def load_player_stats(season, summary_level):
+        calls.append((season, summary_level))
+        return _player_stats_raw()
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", lambda s: _pbp())
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    monkeypatch.setattr(nv.nfl, "load_player_stats", load_player_stats)
+    # 2011 is before player stats; 2012 is the first season fetched
+    for f in ("injuries", "snaps"):
+        for s in (2011, 2012):
+            pl.DataFrame(schema=nv.INJURIES_SCHEMA if f == "injuries" else nv.SNAPS_SCHEMA).write_parquet(
+                tmp_path / f"{f}_{s}.parquet")
+    out = nv.load_season_tables([2011, 2012], current_season=2013, cache_dir=tmp_path)
+    assert calls == [(2012, "week")]
+    assert (tmp_path / "player_stats_2012.parquet").exists()
+    ps = out["player_stats"]
+    assert ps.columns == list(nv.PLAYER_STATS_SCHEMA)
+    assert sorted(ps["team"].to_list()) == ["LA", "LAC"]
+    nv.load_season_tables([2012], current_season=2013, cache_dir=tmp_path)
+    assert calls == [(2012, "week")]  # cached
+
+
+def test_completed_season_player_stats_failure_propagates(monkeypatch, tmp_path):
+    import pytest
+
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", lambda s: _pbp())
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    monkeypatch.setattr(nv.nfl, "load_player_stats", _boom)
+    for f, schema in (("injuries", nv.INJURIES_SCHEMA), ("snaps", nv.SNAPS_SCHEMA)):
+        pl.DataFrame(schema=schema).write_parquet(tmp_path / f"{f}_2015.parquet")
+    with pytest.raises(RuntimeError):
+        nv.load_season_tables([2015], current_season=2016, cache_dir=tmp_path)
+    assert not (tmp_path / "player_stats_2015.parquet").exists()

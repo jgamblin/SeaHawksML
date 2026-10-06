@@ -12,7 +12,7 @@ from pathlib import Path
 import nflreadpy as nfl
 import polars as pl
 
-from seahawks_ml.config import CACHE_DIR, FIRST_SNAP_SEASON, FIRST_TRAIN_SEASON
+from seahawks_ml.config import CACHE_DIR, FIRST_PLAYER_STATS_SEASON, FIRST_SNAP_SEASON, FIRST_TRAIN_SEASON
 from seahawks_ml.teams import normalize_team
 
 TEAM_EPA_SCHEMA = {
@@ -34,6 +34,11 @@ SNAPS_SCHEMA = {
     "game_id": pl.Utf8, "season": pl.Int64, "week": pl.Int64, "team": pl.Utf8,
     "pfr_player_id": pl.Utf8, "position": pl.Utf8, "offense_pct": pl.Float64,
     "defense_pct": pl.Float64,
+}
+PLAYER_STATS_SCHEMA = {
+    "player_id": pl.Utf8, "game_id": pl.Utf8, "season": pl.Int64, "week": pl.Int64, "team": pl.Utf8,
+    "position_group": pl.Utf8, "targets": pl.Int64, "receiving_epa": pl.Float64,
+    "carries": pl.Int64, "rushing_epa": pl.Float64,
 }
 TEAMS_SCHEMA = {"team": pl.Utf8, "conf": pl.Utf8, "division": pl.Utf8}
 # Fallback if nflverse's teams table can't be fetched (current abbreviations, as in schedules).
@@ -217,19 +222,30 @@ def _fetch_snaps(season: int) -> pl.DataFrame:
     )
 
 
+def _fetch_player_stats(season: int) -> pl.DataFrame:
+    """Weekly per-player stats (gsis player_id); the EPA columns are null when there were no plays."""
+    return (
+        nfl.load_player_stats(season, summary_level="week")
+        .with_columns(normalize_team("team"))
+        .select(list(PLAYER_STATS_SCHEMA))
+        .cast(PLAYER_STATS_SCHEMA)
+    )
+
+
 def load_season_tables(
     seasons: list[int],
     current_season: int,
     cache_dir: Path = CACHE_DIR,
     stale_before: dict[int, datetime] | None = None,
 ) -> dict[str, pl.DataFrame]:
-    """Return team_epa, qb_games, injuries and snaps for the given seasons.
+    """Return team_epa, qb_games, injuries, snaps and player_stats for the given seasons.
 
     The current season is always refetched. A completed season is also refetched when
     any of its cache files was written before `stale_before[season]`, and its
     play-by-play tables are refetched when the cached team_epa lacks a current column.
     """
-    parts: dict[str, list[pl.DataFrame]] = {k: [] for k in ("team_epa", "qb_games", "injuries", "snaps")}
+    names = ("team_epa", "qb_games", "injuries", "snaps", "player_stats")
+    parts: dict[str, list[pl.DataFrame]] = {k: [] for k in names}
     for season in seasons:
         tolerate = season == current_season  # only the current season may lack data
         cached = list(cache_dir.glob(f"*_{season}.parquet"))
@@ -272,8 +288,15 @@ def load_season_tables(
                 refresh,
                 SNAPS_SCHEMA if tolerate else None,
             ))
+        if season >= FIRST_PLAYER_STATS_SEASON:
+            parts["player_stats"].append(_cached(
+                cache_dir / f"player_stats_{season}.parquet",
+                lambda s=season: _fetch_player_stats(s),
+                refresh,
+                PLAYER_STATS_SCHEMA if tolerate else None,
+            ))
     schemas = {"team_epa": TEAM_EPA_SCHEMA, "qb_games": QB_GAMES_SCHEMA,
-               "injuries": INJURIES_SCHEMA, "snaps": SNAPS_SCHEMA}
+               "injuries": INJURIES_SCHEMA, "snaps": SNAPS_SCHEMA, "player_stats": PLAYER_STATS_SCHEMA}
     return {
         k: pl.concat([p.cast(schemas[k]) for p in v]) if v else pl.DataFrame(schema=schemas[k])
         for k, v in parts.items()
