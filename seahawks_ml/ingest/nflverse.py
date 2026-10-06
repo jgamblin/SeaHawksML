@@ -53,8 +53,8 @@ PLAYERS_SCHEMA = {
 }
 
 
-# provisional; computed by controller
-FUMBLE_PLAY_EPA = -1.5
+# Computed 2026-10-06: 6,770 fumble plays, per-season means ranged -2.57 to -2.76.
+FUMBLE_PLAY_EPA = -2.69
 """League mean EPA of scrimmage plays with `fumble == 1` over the 2012-2023 seasons.
 
 A fixed constant (not the current season's mean) so that neutralization never uses
