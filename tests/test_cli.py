@@ -96,8 +96,12 @@ def predict_env(monkeypatch, tmp_path):
         env.loads.append(now)
         return stadiums, raw
 
+    env.sim = tmp_path / "sim.jsonl"
     monkeypatch.setattr(cli, "PREDICTIONS_PATH", env.hist)
     monkeypatch.setattr(cli, "LEAGUE_PATH", env.league)
+    monkeypatch.setattr(cli, "SEASON_SIM_PATH", env.sim)
+    teams = pl.DataFrame({"team": ["SEA", "SF", "LA", "ARI"], "conf": ["NFC"] * 4, "division": ["NFC West"] * 4})
+    monkeypatch.setattr(nflverse, "load_teams", lambda: teams)
     monkeypatch.setattr(nflverse, "load_schedules", lambda: raw.games)
     monkeypatch.setattr("seahawks_ml.features.base.prepare_games", lambda s, st: s)
     monkeypatch.setattr(weather, "forecast_for_games", fake_forecast)
@@ -196,10 +200,75 @@ def test_predict_league_only_when_seahawks_already_run(predict_env):
     assert [r["run_type"] for r in read_history(env.hist)] == ["final_injury"]  # no second Seahawks run
 
 
+def _sim_snapshot(now):
+    return {"as_of": now.isoformat(), "season": 2014, "team": "SEA", "n_sims": 1, "wins_mean": 3.0,
+            "wins_p10": 3.0, "wins_p50": 3.0, "wins_p90": 3.0, "win_dist": [{"wins": 3, "prob": 1.0}],
+            "p_playoffs": 1.0, "p_division": 1.0, "p_top_seed": 1.0, "record_now": "3-2-0",
+            "model_version": "vtest"}
+
+
 def test_predict_nothing_due_loads_nothing(predict_env):
+    from seahawks_ml.pipeline.season_sim import append_snapshot
     env, changed = predict_env, []
-    cli._predict(_args(env.kick - timedelta(hours=36)), changed)
+    now = env.kick - timedelta(hours=36)
+    append_snapshot(_sim_snapshot(now.replace(hour=0)), env.sim)  # today's simulation already done
+    cli._predict(_args(now), changed)
     assert not changed and env.loads == []
+
+
+def test_predict_runs_daily_season_sim_when_nothing_else_due(predict_env):
+    from seahawks_ml.pipeline.history import read_history
+    env, changed = predict_env, []
+    now = env.kick - timedelta(hours=36)
+    cli._predict(_args(now), changed)
+    assert changed and len(env.loads) == 1
+    assert read_history(env.hist) == [] and read_history(env.league) == []
+    [snap] = read_history(env.sim)
+    assert snap["season"] == 2014 and snap["team"] == "SEA" and snap["model_version"] == "vtest"
+    assert snap["n_sims"] == 10_000 and snap["as_of"] == now.isoformat()
+    assert snap["record_now"].count("-") == 2 and 0 <= snap["p_playoffs"] <= 1
+    changed = []
+    cli._predict(_args(now + timedelta(hours=1)), changed)  # same UTC day: quick exit
+    assert not changed and len(env.loads) == 1
+
+
+def test_predict_skips_season_sim_outside_season(predict_env):
+    env, changed = predict_env, []
+    cli._predict(_args(env.kick + timedelta(days=30)), changed)
+    assert not changed and env.loads == [] and not env.sim.exists()
+
+
+def test_season_sim_runs_with_seahawks_prediction(predict_env):
+    from seahawks_ml.pipeline.history import read_history
+    env = predict_env
+    cli._predict(_args(env.kick - timedelta(hours=12)), [])
+    assert len(read_history(env.sim)) == 1 and len(env.loads) == 1
+
+
+def test_season_sim_failure_keeps_seahawks_record(predict_env, monkeypatch, capsys):
+    from seahawks_ml.pipeline import season_sim
+    from seahawks_ml.pipeline.history import read_history
+
+    def boom(*a, **k):
+        raise RuntimeError("sim exploded")
+
+    monkeypatch.setattr(season_sim, "simulate_season", boom)
+    env, changed = predict_env, []
+    cli._predict(_args(env.kick - timedelta(hours=12)), changed)
+    assert changed and [r["run_type"] for r in read_history(env.hist)] == ["final_injury"]
+    assert not env.sim.exists()
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "sim exploded" in out
+
+
+def test_simulate_command_appends_once_per_day(predict_env, capsys):
+    from seahawks_ml.pipeline.history import read_history
+    env = predict_env
+    now = env.kick - timedelta(hours=36)
+    cli.cmd_simulate(_args(now))
+    cli.cmd_simulate(_args(now + timedelta(hours=2)))
+    assert len(read_history(env.sim)) == 1 and len(env.loads) == 2
+    assert "already" in capsys.readouterr().out
 
 
 def test_predict_records_league_results(predict_env, monkeypatch):
@@ -251,3 +320,15 @@ def test_backtest_stage0_picks_best_rating_params(monkeypatch, tmp_path, capsys)
     assert written["saved"].rating == winner
     assert any(t["rating"] == {**winner.__dict__} and t["log_loss"] == 0.6 for t in written["feature_trials"])
     assert f"best rating: {winner}" in capsys.readouterr().out
+
+
+def test_sim_only_run_survives_data_load_failure(predict_env, monkeypatch, capsys):
+    env, changed = predict_env, []
+
+    def boom(now, games=None):
+        raise RuntimeError("nflverse down")
+
+    monkeypatch.setattr(cli, "_load", boom)
+    cli._predict(_args(env.kick - timedelta(hours=36)), changed)  # must not raise
+    assert not changed and not env.sim.exists()
+    assert "nflverse down" in capsys.readouterr().out

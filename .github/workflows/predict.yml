@@ -2,7 +2,8 @@ name: Predict
 
 on:
   schedule:
-    # Hourly during the season (Sep-Feb). The gate exits in seconds unless a run is due.
+    # Hourly during the season (Sep-Feb). The gate exits in seconds unless a run is due; the first
+    # run of each UTC day in season also refreshes the season simulation (predictions/season_sim.jsonl).
     - cron: "17 * * 1,2,9,10,11,12 *"
   workflow_dispatch:
     inputs:

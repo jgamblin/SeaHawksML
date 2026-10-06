@@ -1,6 +1,6 @@
 """Command-line entry point: python -m seahawks_ml.cli <command>.
 
-Local (offseason / manual):  features, backtest, holdout
+Local (offseason / manual):  features, backtest, holdout, simulate
 CI (in season):              retrain, predict, build-site
 """
 
@@ -18,6 +18,7 @@ from seahawks_ml.config import (
     HOLDOUT_SEASONS,
     LEAGUE_PATH,
     PREDICTIONS_PATH,
+    SEASON_SIM_PATH,
     TEAM,
 )
 
@@ -161,6 +162,32 @@ def _warn_league(what: str) -> None:
     print("".join(traceback.format_exc(limit=-3)).rstrip())
 
 
+def _warn_sim() -> None:
+    """Report a season-simulation failure without aborting the run."""
+    import traceback
+
+    print("WARNING: season simulation failed; predictions are unaffected. Will retry next hour.")
+    print("".join(traceback.format_exc(limit=-3)).rstrip())
+
+
+def _run_season_sim(games: pl.DataFrame, frame: pl.DataFrame, model, now: datetime, version: str) -> bool:
+    """Simulate the current season with the current model and log today's snapshot. True if appended."""
+    from seahawks_ml.data import current_season
+    from seahawks_ml.ingest import nflverse
+    from seahawks_ml.pipeline import season_sim
+
+    season = current_season(games, now)
+    probs = season_sim.remaining_game_probs(frame, model, season)
+    rec = season_sim.simulate_season(games, probs, nflverse.load_teams(), season, now=now)
+    rec["model_version"] = version
+    if not season_sim.append_snapshot(rec, SEASON_SIM_PATH):
+        print("season simulation for today already logged; skipped")
+        return False
+    print(f"season sim {season}: {rec['wins_mean']:.1f} wins, P(playoffs) {rec['p_playoffs']:.0%}, "
+          f"P(division) {rec['p_division']:.0%}, P(#1 seed) {rec['p_top_seed']:.0%}")
+    return True
+
+
 def _fetch_forecast(targets: pl.DataFrame, stadiums, seahawks_id: str | None) -> pl.DataFrame:
     """Forecast for the target games; if the combined fetch fails, retry for the Seahawks game alone
     (league games then have no forecast this hour and are skipped by the caller)."""
@@ -212,6 +239,7 @@ def _predict(args, changed: list[bool]) -> None:
     )
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
     from seahawks_ml.pipeline.results import new_results
+    from seahawks_ml.pipeline.season_sim import has_snapshot_for, season_in_progress
     from seahawks_ml.stadiums import load_stadiums
 
     now = _now(args)
@@ -245,7 +273,16 @@ def _predict(args, changed: list[bool]) -> None:
             print(f"no run due for {game['game_id']} (kickoff {game['kickoff_utc']:%Y-%m-%d %H:%M} UTC)")
     logged = {r["game_id"] for r in league_log if r["type"] == "league_prediction"}
     league_ids = due_league_games(games, now, logged)
+    # The season simulation runs on any run that loads data, and at least once per UTC day in season.
+    sim_due = season_in_progress(games, now) and not has_snapshot_for(read_history(SEASON_SIM_PATH), now)
     if run_type is None and not league_ids:
+        if sim_due:  # nothing else to do: a failure here (e.g. a data download) must not fail the job
+            print("season simulation due (none logged today)")
+            try:
+                if _simulate(now, games):
+                    changed.append(True)
+            except Exception:
+                _warn_sim()
         return
 
     if run_type:
@@ -257,6 +294,7 @@ def _predict(args, changed: list[bool]) -> None:
     if run_type and not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
         print("previous game data not in yet; will retry next hour")
         run_type = None
+        sim_due = False  # its result would be simulated as if unplayed
         if not league_ids:
             return
     target_ids = list(league_ids) + ([game["game_id"]] if run_type else [])
@@ -295,6 +333,31 @@ def _predict(args, changed: list[bool]) -> None:
             print(f"logged {len(records)} league predictions")
         except Exception:
             _warn_league("predictions")
+    if sim_due:
+        print("season simulation due (none logged today)")
+        try:
+            if _run_season_sim(raw.games, frame, model, now, version):
+                changed.append(True)
+        except Exception:
+            _warn_sim()
+
+
+def _simulate(now: datetime, games: pl.DataFrame | None = None) -> bool:
+    """Load data, build features and run the season simulation. True if a snapshot was appended."""
+    from seahawks_ml.models.store import METRICS_PATH, check_model_matches, load_config, load_model
+
+    config = load_config()
+    stadiums, raw = _load(now, games)
+    frame = _build(raw, stadiums, config)
+    model = load_model()
+    metrics = json.loads(METRICS_PATH.read_text())
+    check_model_matches(metrics, config)
+    return _run_season_sim(raw.games, frame, model, now, metrics["model_version"])
+
+
+def cmd_simulate(args) -> None:
+    """Simulate the rest of the season with the current model; log at most one snapshot per UTC day."""
+    _simulate(_now(args))
 
 
 def cmd_build_site(args) -> None:
@@ -318,6 +381,8 @@ def main(argv: list[str] | None = None) -> None:
     pr = sub.add_parser("predict", help="CI: predict the next Seahawks game if a run is due")
     pr.add_argument("--run-type", choices=["midweek", "final_injury", "gameday"], help="force a run type")
     pr.set_defaults(func=cmd_predict)
+    sub.add_parser("simulate", help="simulate the rest of the season; log today's snapshot").set_defaults(
+        func=cmd_simulate)
     sub.add_parser("build-site", help="render public/").set_defaults(func=cmd_build_site)
     args = parser.parse_args(argv)
     args.func(args)
