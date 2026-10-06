@@ -142,22 +142,34 @@ def _expected_skill_quality(raw, player: str, group_stats: set[str], params: Ava
                             player_stats: pl.DataFrame | None = None) -> float:
     """Independent re-derivation of the skill-player quality for the week-5 2014 game.
 
-    Receiving and rushing are kept apart; the baseline uses the player's own targets/carries mix.
+    Receiving and rushing are kept apart and combined in the player's own targets/carries mix:
+    shrink toward the group mean, measure against replacement (25th percentile of player-season
+    EPA per target / per carry among players with >= 20 of them, earlier seasons).
     """
     game = _week5_game(raw)
     stats = raw.player_stats if player_stats is None else player_stats
     ps = stats.join(raw.games.select("game_id", "kickoff_utc"), on="game_id").with_columns(
         pl.col("receiving_epa").fill_null(0.0), pl.col("rushing_epa").fill_null(0.0))
     before = ps.filter(pl.col("season") < 2014, pl.col("position_group").is_in(list(group_stats)))
-    ratio = lambda epa, n: before[epa].sum() / before[n].sum() if before[n].sum() else 0.0  # noqa: E731
-    repl_rec, repl_rush = ratio("receiving_epa", "targets"), ratio("rushing_epa", "carries")
+    seasons = before.group_by("player_id", "season").agg(pl.col("receiving_epa", "targets", "rushing_epa",
+                                                                 "carries").sum())
+
+    def mean_and_repl(epa: str, n: str) -> tuple[float, float]:
+        mean = before[epa].sum() / before[n].sum() if before[n].sum() else 0.0
+        qualified = seasons.filter(pl.col(n) >= 20)
+        repl = (qualified[epa] / qualified[n]).quantile(0.25, "linear") if qualified.height else mean
+        return mean, repl
+
+    (mean_rec, repl_rec), (mean_rush, repl_rush) = mean_and_repl("receiving_epa", "targets"), \
+        mean_and_repl("rushing_epa", "carries")
     own = ps.filter(pl.col("player_id") == player, pl.col("season") >= 2013,
                     pl.col("kickoff_utc") < game["kickoff_utc"])
     t, c = own["targets"].sum(), own["carries"].sum()
-    base = (t * repl_rec + c * repl_rush) / (t + c)
+    mix = t / (t + c) if t + c else before["targets"].sum() / (before["targets"].sum() + before["carries"].sum())
     k = params.prior_opps
-    shrunk = (k * base + own["receiving_epa"].sum() + own["rushing_epa"].sum()) / (k + t + c)
-    return max(0.0, 1 + params.quality_scale * (shrunk - base))
+    shrunk = (k * (mix * mean_rec + (1 - mix) * mean_rush) + own["receiving_epa"].sum()
+              + own["rushing_epa"].sum()) / (k + t + c)
+    return max(0.0, 1 + params.quality_scale * (shrunk - (mix * repl_rec + (1 - mix) * repl_rush)))
 
 
 @pytest.mark.parametrize("player,group,stats", [(0, "wrte", {"WR", "TE"}), (4, "rb", {"RB"})])
@@ -186,6 +198,20 @@ def test_values_skill_baseline_uses_players_own_receiving_rushing_mix():
     row = _row(raw, _home_injuries(game, {4: "Out"}), params, player_stats=stats)
     quality = _expected_skill_quality(raw, target, {"RB"}, params, player_stats=stats)
     assert row["home_out_rb"] == pytest.approx(0.9 * quality)
+
+
+def test_values_skill_quality_is_measured_against_replacement_not_the_mean():
+    """A player with no history is shrunk all the way to the group mean, which sits above
+    replacement level (the 25th percentile), so he weighs more than 1."""
+    raw = make_raw()
+    game = _week5_game(raw)
+    target = f"{game['home_team']}-P0"
+    stats = raw.player_stats.filter(pl.col("player_id") != target)
+    params = AvailabilityParams(mode="values", prior_opps=30.0, quality_scale=6.0)
+    row = _row(raw, _home_injuries(game, {0: "Out"}), params, player_stats=stats)
+    quality = _expected_skill_quality(raw, target, {"WR", "TE"}, params, player_stats=stats)
+    assert quality > 1.0
+    assert row["home_out_wrte"] == pytest.approx(0.9 * quality)
 
 
 def test_values_quality_is_floored_at_zero():
