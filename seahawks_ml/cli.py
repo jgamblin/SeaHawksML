@@ -138,6 +138,14 @@ def cmd_retrain(args) -> None:
 
 def cmd_predict(args) -> None:
     """CI: if a run is due for the next Seahawks game, predict and log it."""
+    changed: list[bool] = []  # non-empty once anything was appended to the history
+    try:
+        _predict(args, changed)
+    finally:
+        _set_output("changed", "true" if changed else "false")
+
+
+def _predict(args, changed: list[bool]) -> None:
     from seahawks_ml.features.base import prepare_games
     from seahawks_ml.ingest import nflverse
     from seahawks_ml.ingest.weather import forecast_for_games
@@ -156,9 +164,9 @@ def cmd_predict(args) -> None:
     results = new_results(history, games, now)
     for rec in results:
         append_record(rec)
+        changed.append(True)
         print(f"result recorded: {rec['game_id']} {rec['margin_seahawks']:+d}")
     history = read_history()
-    _set_output("changed", "true" if results else "false")
 
     game = next_game(games, TEAM, now)
     if game is None:
@@ -189,8 +197,8 @@ def cmd_predict(args) -> None:
     record = make_prediction(row, model, run_type, now, version,
                              latest_injury_week(raw.injuries, game["season"]))
     append_record(record)
+    changed.append(True)
     print(f"SEA win probability {record['p_seahawks']:.1%}, margin {record['margin_seahawks']:+.1f}")
-    _set_output("changed", "true")
 
 
 def cmd_build_site(args) -> None:
