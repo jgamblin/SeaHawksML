@@ -93,6 +93,51 @@ def test_head_to_head_orders_division_winners():
     assert _sim(rows)["p_top_seed"] == 1.0
 
 
+def _one_division_nfc():
+    return _teams({t: "NFC West" for t in ["SEA", "SF", "LA", "ARI", "DAL", "NYG", "PHI", "WAS"]} | AFC)
+
+
+def test_three_team_tie_head_to_head_over_whole_group_unmet_teams_score_half():
+    # SEA, SF and LA are all 1-1 and compete for the last two wild cards behind ARI (division winner, 3-0)
+    # and DAL (2-1). SEA beat SF; LA met neither, so over the group SEA 1.0 > LA 0.5 > SF 0.0.
+    rows = [("SEA", "SF", 3), ("KC", "SEA", 3), ("SF", "BUF", 3), ("LA", "KC", 3), ("KC", "LA", 3),
+            ("ARI", "KC", 3), ("ARI", "BUF", 3), ("KC", "ARI", -3),
+            ("DAL", "KC", 3), ("DAL", "BUF", 3), ("BUF", "DAL", 3),
+            ("KC", "NYG", 3), ("KC", "PHI", 3), ("KC", "WAS", 3)]
+    teams = _one_division_nfc()
+    assert _sim(rows, teams=teams, team="SEA")["p_playoffs"] == 1.0
+    assert _sim(rows, teams=teams, team="LA")["p_playoffs"] == 1.0
+    assert _sim(rows, teams=teams, team="SF")["p_playoffs"] == 0.0
+
+
+def test_wild_card_tie_across_divisions_decided_on_division_win_pct():
+    # SEA (West) and DAL (East) are 2-2, never met, for the last wild card behind SF and LA (3-1).
+    # SEA is 1-0 in its division, DAL 0-1.
+    rows = [("SEA", "SF", 3), ("SEA", "KC", 3), ("KC", "SEA", 3), ("KC", "SEA", 3),
+            ("SF", "KC", 3), ("SF", "KC", 3), ("SF", "KC", 3),
+            ("LA", "KC", 3), ("LA", "KC", 3), ("LA", "KC", 3), ("KC", "LA", 3),
+            ("ARI", "KC", 3), ("ARI", "KC", 3), ("ARI", "KC", 3), ("ARI", "KC", 3),
+            ("NYG", "DAL", 3), ("DAL", "BUF", 3), ("DAL", "BUF", 3), ("BUF", "DAL", 3),
+            ("NYG", "BUF", 3), ("NYG", "BUF", 3), ("NYG", "BUF", 3),
+            ("KC", "PHI", 3), ("KC", "WAS", 3)]
+    assert _sim(rows, team="SEA")["p_playoffs"] == 1.0
+    assert _sim(rows, team="DAL")["p_playoffs"] == 0.0
+
+
+def test_division_winner_with_worse_record_than_wild_cards_still_makes_playoffs():
+    # SEA wins a weak West at 1-3; NYG, PHI and WAS (3-1) take the wild cards, DAL (4-0) wins the East.
+    rows = ([("SEA", "KC", 3)] + [("KC", "SEA", 3)] * 3
+            + [("KC", t, 3) for t in ["SF", "LA", "ARI"] for _ in range(4)]
+            + [("DAL", "BUF", 3)] * 4
+            + [(t, "BUF", 3) for t in ["NYG", "PHI", "WAS"] for _ in range(3)]
+            + [("BUF", t, 3) for t in ["NYG", "PHI", "WAS"]])
+    sea = _sim(rows, team="SEA")
+    assert (sea["p_playoffs"], sea["p_division"], sea["p_top_seed"]) == (1.0, 1.0, 0.0)
+    nyg = _sim(rows, team="NYG")
+    assert (nyg["p_playoffs"], nyg["p_division"]) == (1.0, 0.0)
+    assert _sim(rows, team="SF")["p_playoffs"] == 0.0
+
+
 def test_remaining_games_are_simulated_and_ties_count_half():
     rows = [("SEA", "SF", 0), ("SEA", "LA", 3), ("ARI", "SEA", None), ("SEA", "DAL", None)]
     out = _sim(rows, probs={"g2": 0.5, "g3": 0.5}, n_sims=4000)
