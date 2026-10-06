@@ -10,6 +10,7 @@ FEATURES_PATH = DATA_DIR / "features" / "games.parquet"
 MODELS_DIR = ROOT / "models"
 PREDICTIONS_PATH = ROOT / "predictions" / "history.jsonl"
 LEAGUE_PATH = ROOT / "predictions" / "league.jsonl"
+SEASON_SIM_PATH = ROOT / "predictions" / "season_sim.jsonl"
 SITE_DIR = ROOT / "public"
 
 FIRST_RATING_SEASON = 2002  # ratings warm up from here (32-team era)
