@@ -41,3 +41,22 @@ def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index):
         pl.col("game_id") == target["game_id"])
     for col in FEATURE_COLUMNS:
         assert full[col][0] == pytest.approx(cut[col][0]), col
+
+
+def test_availability_known_requires_both_sides(stadiums, monkeypatch):
+    import seahawks_ml.features.build as build
+
+    raw = make_raw()
+    real = build.compute_availability
+    target = raw.games.filter(pl.col("season") == 2014).row(0, named=True)["game_id"]
+
+    def patched(*args, **kwargs):
+        out = real(*args, **kwargs)
+        return out.with_columns(
+            pl.when(pl.col("game_id") == target).then(None).otherwise(pl.col("away_off_out"))
+            .alias("away_off_out"))
+
+    monkeypatch.setattr(build, "compute_availability", patched)
+    frame = build.build_features(raw, stadiums)
+    assert frame.filter(pl.col("game_id") == target)["availability_known"][0] == 0
+    assert frame["availability_known"].sum() > 0

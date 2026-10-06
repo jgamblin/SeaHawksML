@@ -61,7 +61,8 @@ def build_features(
           for s in ("home", "away") for b in ("round_1", "day_2")],
         pl.col("home_new_head_coach").alias("home_new_coach"),
         pl.col("away_new_head_coach").alias("away_new_coach"),
-        pl.col("home_off_out").is_not_null().cast(pl.Int64).alias("availability_known"),
+        (pl.col("home_off_out").is_not_null() & pl.col("away_off_out").is_not_null())
+        .cast(pl.Int64).alias("availability_known"),
         *[pl.col(c).fill_null(0.0) for c in avail],
     )
     return frame.select(ID_COLUMNS + FEATURE_COLUMNS).sort("kickoff_utc", "game_id")
