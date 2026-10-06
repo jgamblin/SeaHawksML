@@ -42,83 +42,83 @@
   "score": {
     "model": {
       "n": 3259,
-      "log_loss": 0.6278690184256525,
-      "brier": 0.2183481787018211,
+      "log_loss": 0.6278597029653872,
+      "brier": 0.2183446044074756,
       "accuracy": 0.6485987064983061,
-      "margin_mae": 10.260095109695007,
+      "margin_mae": 10.259857652084836,
       "log_loss_ci90": [
-        0.617989716933654,
-        0.6363887549063478
+        0.6179783968487658,
+        0.636381725175174
       ],
       "calibration": [
         {
           "bin_low": 0.0,
           "bin_high": 0.1,
           "n": 3,
-          "mean_pred": 0.07701188378709668,
+          "mean_pred": 0.07692010111110341,
           "mean_outcome": 0.0
         },
         {
           "bin_low": 0.1,
           "bin_high": 0.2,
           "n": 44,
-          "mean_pred": 0.1686892632640016,
+          "mean_pred": 0.16870082581641824,
           "mean_outcome": 0.2727272727272727
         },
         {
           "bin_low": 0.2,
           "bin_high": 0.30000000000000004,
           "n": 143,
-          "mean_pred": 0.25919543458235395,
+          "mean_pred": 0.2591608105874083,
           "mean_outcome": 0.24825174825174826
         },
         {
           "bin_low": 0.30000000000000004,
           "bin_high": 0.4,
-          "n": 335,
-          "mean_pred": 0.3593890717045741,
-          "mean_outcome": 0.32985074626865674
+          "n": 336,
+          "mean_pred": 0.3595146514338118,
+          "mean_outcome": 0.3318452380952381
         },
         {
           "bin_low": 0.4,
           "bin_high": 0.5,
-          "n": 606,
-          "mean_pred": 0.45201021778063455,
-          "mean_outcome": 0.43234323432343236
+          "n": 603,
+          "mean_pred": 0.4519594567079879,
+          "mean_outcome": 0.4311774461028192
         },
         {
           "bin_low": 0.5,
           "bin_high": 0.6000000000000001,
-          "n": 766,
-          "mean_pred": 0.5518832792974906,
-          "mean_outcome": 0.5463446475195822
+          "n": 769,
+          "mean_pred": 0.5518118999009863,
+          "mean_outcome": 0.546814044213264
         },
         {
           "bin_low": 0.6000000000000001,
           "bin_high": 0.7000000000000001,
-          "n": 730,
-          "mean_pred": 0.6464387932204622,
-          "mean_outcome": 0.6602739726027397
+          "n": 729,
+          "mean_pred": 0.6465000400036235,
+          "mean_outcome": 0.6598079561042524
         },
         {
           "bin_low": 0.7000000000000001,
           "bin_high": 0.8,
           "n": 461,
-          "mean_pred": 0.7450553986539298,
+          "mean_pred": 0.7450492200653749,
           "mean_outcome": 0.7527114967462039
         },
         {
           "bin_low": 0.8,
           "bin_high": 0.9,
           "n": 156,
-          "mean_pred": 0.8368241841360776,
+          "mean_pred": 0.8368236237208296,
           "mean_outcome": 0.9006410256410257
         },
         {
           "bin_low": 0.9,
           "bin_high": 1.0,
           "n": 15,
-          "mean_pred": 0.9178941536123966,
+          "mean_pred": 0.9178699477970584,
           "mean_outcome": 0.8666666666666667
         }
       ]
@@ -311,8 +311,8 @@
     },
     "seahawks_only": {
       "n": 212,
-      "log_loss": 0.6028322433774687,
-      "brier": 0.20701511446033877,
+      "log_loss": 0.6028237267794359,
+      "brier": 0.2070125348626713,
       "accuracy": 0.6729857819905213,
       "margin_mae": null
     },
@@ -320,98 +320,98 @@
       {
         "season": 2012,
         "n": 267,
-        "log_loss": 0.6233006326470872,
-        "brier": 0.21725803792059356,
+        "log_loss": 0.6232485728290247,
+        "brier": 0.21723711481754232,
         "accuracy": 0.6203007518796992,
-        "margin_mae": 11.06787262521753
+        "margin_mae": 11.067214218312209
       },
       {
         "season": 2013,
         "n": 267,
-        "log_loss": 0.611844567831383,
-        "brier": 0.2119151675137161,
-        "accuracy": 0.650375939849624,
-        "margin_mae": 9.770702596363188
+        "log_loss": 0.6118721165575952,
+        "brier": 0.2119256992079192,
+        "accuracy": 0.6541353383458647,
+        "margin_mae": 9.771248374018208
       },
       {
         "season": 2014,
         "n": 267,
-        "log_loss": 0.6194525233878613,
-        "brier": 0.21489106176063702,
+        "log_loss": 0.6194580121587113,
+        "brier": 0.2148938396587639,
         "accuracy": 0.6466165413533834,
-        "margin_mae": 11.597670442087193
+        "margin_mae": 11.59747653550144
       },
       {
         "season": 2015,
         "n": 267,
-        "log_loss": 0.6577795376814509,
-        "brier": 0.23233911239257898,
+        "log_loss": 0.6578265192169332,
+        "brier": 0.23236266885276372,
         "accuracy": 0.6142322097378277,
-        "margin_mae": 10.50141326316527
+        "margin_mae": 10.501502970062884
       },
       {
         "season": 2016,
         "n": 267,
-        "log_loss": 0.6318256519640115,
-        "brier": 0.219439608341845,
+        "log_loss": 0.6317814000423037,
+        "brier": 0.21942166368169713,
         "accuracy": 0.6113207547169811,
-        "margin_mae": 9.305354601136983
+        "margin_mae": 9.304377034270889
       },
       {
         "season": 2017,
         "n": 267,
-        "log_loss": 0.6172481056953214,
-        "brier": 0.21435735491791696,
+        "log_loss": 0.617242543693476,
+        "brier": 0.21435314592730756,
         "accuracy": 0.6816479400749064,
-        "margin_mae": 10.4229615580408
+        "margin_mae": 10.422993033654649
       },
       {
         "season": 2018,
         "n": 267,
-        "log_loss": 0.6093466134528825,
-        "brier": 0.20884340487288883,
+        "log_loss": 0.609314818103536,
+        "brier": 0.20882780354757013,
         "accuracy": 0.6830188679245283,
-        "margin_mae": 9.84674077094667
+        "margin_mae": 9.846200411890216
       },
       {
         "season": 2019,
         "n": 267,
-        "log_loss": 0.6335767659926784,
-        "brier": 0.22101567348156162,
+        "log_loss": 0.6335661658795593,
+        "brier": 0.22101269028878412,
         "accuracy": 0.650375939849624,
-        "margin_mae": 10.376060354188672
+        "margin_mae": 10.375795608795963
       },
       {
         "season": 2020,
         "n": 269,
-        "log_loss": 0.6123178963060163,
-        "brier": 0.2104917056033452,
+        "log_loss": 0.6122976879476522,
+        "brier": 0.2104844228472082,
         "accuracy": 0.6828358208955224,
-        "margin_mae": 9.949077080209113
+        "margin_mae": 9.948808613057343
       },
       {
         "season": 2021,
         "n": 285,
-        "log_loss": 0.6334819170363011,
-        "brier": 0.22062641410547354,
+        "log_loss": 0.6334761493300531,
+        "brier": 0.22062247433093748,
         "accuracy": 0.6373239436619719,
-        "margin_mae": 10.81934785315905
+        "margin_mae": 10.818986425447848
       },
       {
         "season": 2022,
         "n": 284,
-        "log_loss": 0.6424109471193314,
-        "brier": 0.22387530441579023,
-        "accuracy": 0.6560283687943262,
-        "margin_mae": 9.230602934210095
+        "log_loss": 0.6423968736266447,
+        "brier": 0.22387027539959092,
+        "accuracy": 0.6524822695035462,
+        "margin_mae": 9.230458952451116
       },
       {
         "season": 2023,
         "n": 285,
-        "log_loss": 0.6398477093522195,
-        "brier": 0.2242788268313218,
+        "log_loss": 0.6398402441851987,
+        "brier": 0.22427700871219686,
         "accuracy": 0.6491228070175439,
-        "margin_mae": 10.263296870448118
+        "margin_mae": 10.263183549775714
       }
     ]
   },
@@ -430,7 +430,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6295454661158294
+      "log_loss": 0.6295488568248092
     },
     {
       "config": {
@@ -446,7 +446,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6289375455500171
+      "log_loss": 0.628936609969377
     },
     {
       "config": {
@@ -462,7 +462,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6288821851791728
+      "log_loss": 0.6288785540415736
     },
     {
       "config": {
@@ -478,7 +478,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6284071510123664
+      "log_loss": 0.6284035551581869
     },
     {
       "config": {
@@ -494,7 +494,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6279851555586127
+      "log_loss": 0.6279798212812806
     },
     {
       "config": {
@@ -510,7 +510,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6279673647915844
+      "log_loss": 0.6279608510793866
     },
     {
       "config": {
@@ -526,7 +526,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6283830375895765
+      "log_loss": 0.6283738829310185
     },
     {
       "config": {
@@ -542,7 +542,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6279352454324622
+      "log_loss": 0.6279260862692232
     },
     {
       "config": {
@@ -558,7 +558,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6278690184256525
+      "log_loss": 0.6278597029653872
     },
     {
       "config": {
@@ -574,7 +574,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6303534163280112
+      "log_loss": 0.6303394606574483
     },
     {
       "config": {
@@ -590,7 +590,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6293218119135818
+      "log_loss": 0.6293083178719628
     },
     {
       "config": {
@@ -606,7 +606,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6289663022657144
+      "log_loss": 0.6289531249752659
     },
     {
       "config": {
@@ -626,7 +626,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6299582629514228
+      "log_loss": 0.6300043174115865
     },
     {
       "config": {
@@ -646,7 +646,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6296449599535276
+      "log_loss": 0.6298234848196002
     },
     {
       "config": {
@@ -666,7 +666,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6295302577001409
+      "log_loss": 0.6298494624417481
     },
     {
       "config": {
@@ -686,7 +686,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6336422137012517
+      "log_loss": 0.6334801503820116
     },
     {
       "config": {
@@ -706,7 +706,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6328821378099434
+      "log_loss": 0.6332929379060465
     },
     {
       "config": {
@@ -726,7 +726,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6332589869444913
+      "log_loss": 0.6330173887725989
     },
     {
       "config": {
@@ -742,7 +742,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6314640925795845
+      "log_loss": 0.6314653243322923
     },
     {
       "config": {
@@ -758,7 +758,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6299294056090455
+      "log_loss": 0.6299172585081273
     },
     {
       "config": {
@@ -774,7 +774,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6347787496052483
+      "log_loss": 0.6347696614160414
     },
     {
       "config": {
@@ -790,7 +790,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6284784267630334
+      "log_loss": 0.6284685243188644
     },
     {
       "config": {
@@ -806,7 +806,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6294654225449513
+      "log_loss": 0.6294547434652081
     },
     {
       "config": {
@@ -822,7 +822,7 @@
         "use_platt": true,
         "inner_folds": 20
       },
-      "log_loss": 0.6289940096018626
+      "log_loss": 0.6289856487026046
     }
   ],
   "feature_trials": [
@@ -835,7 +835,7 @@
         "opponent_adjust": false,
         "extra_stats": false
       },
-      "log_loss": 0.6286197918817084
+      "log_loss": 0.6286102403461072
     },
     {
       "stage": "rating",
@@ -846,7 +846,7 @@
         "opponent_adjust": false,
         "extra_stats": true
       },
-      "log_loss": 0.6284337738709124
+      "log_loss": 0.628429704043292
     },
     {
       "stage": "rating",
@@ -857,7 +857,7 @@
         "opponent_adjust": true,
         "extra_stats": false
       },
-      "log_loss": 0.6289461295959543
+      "log_loss": 0.6289374937136807
     },
     {
       "stage": "rating",
@@ -868,7 +868,7 @@
         "opponent_adjust": true,
         "extra_stats": true
       },
-      "log_loss": 0.628959998161484
+      "log_loss": 0.62895876674531
     },
     {
       "stage": "rating",
@@ -879,7 +879,7 @@
         "opponent_adjust": true,
         "extra_stats": true
       },
-      "log_loss": 0.6292000898840535
+      "log_loss": 0.6291993071315273
     },
     {
       "stage": "rating",
@@ -890,7 +890,7 @@
         "opponent_adjust": true,
         "extra_stats": true
       },
-      "log_loss": 0.6288061627995042
+      "log_loss": 0.6288040839943643
     },
     {
       "stage": "rating",
@@ -901,7 +901,7 @@
         "opponent_adjust": true,
         "extra_stats": true
       },
-      "log_loss": 0.6290714224444088
+      "log_loss": 0.6290701900628457
     },
     {
       "stage": "qb",
@@ -909,7 +909,7 @@
         "prior_dropbacks": 150.0,
         "window_seasons": 3
       },
-      "log_loss": 0.6284071510123664
+      "log_loss": 0.6284035551581869
     },
     {
       "stage": "qb",
@@ -917,7 +917,7 @@
         "prior_dropbacks": 250.0,
         "window_seasons": 3
       },
-      "log_loss": 0.6284337738709124
+      "log_loss": 0.628429704043292
     },
     {
       "stage": "qb",
@@ -925,7 +925,7 @@
         "prior_dropbacks": 400.0,
         "window_seasons": 3
       },
-      "log_loss": 0.6285739084953446
+      "log_loss": 0.6285692881400339
     }
   ]
 }

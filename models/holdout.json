@@ -7,7 +7,7 @@
     "model": {
       "kind": "ridge",
       "params": {
-        "alpha": 100.0
+        "alpha": 300.0
       },
       "half_life": 12.0,
       "prob_method": "gaussian",
@@ -20,7 +20,9 @@
     "rating": {
       "prior_regression": 0.6,
       "prior_games": 6.0,
-      "prior_games_new_coach": 2.0
+      "prior_games_new_coach": 2.0,
+      "opponent_adjust": false,
+      "extra_stats": true
     },
     "qb": {
       "prior_dropbacks": 150.0,
@@ -30,76 +32,76 @@
   "score": {
     "model": {
       "n": 570,
-      "log_loss": 0.6150930732214894,
-      "brier": 0.21278190548130405,
-      "accuracy": 0.664323374340949,
-      "margin_mae": 9.923502147120423,
+      "log_loss": 0.6152418766048379,
+      "brier": 0.2130077152054898,
+      "accuracy": 0.671353251318102,
+      "margin_mae": 9.940082458561907,
       "log_loss_ci90": [
-        0.5923024927737788,
-        0.6338942817827887
+        0.5940628932092455,
+        0.6335220297686575
       ],
       "calibration": [
         {
           "bin_low": 0.1,
           "bin_high": 0.2,
           "n": 8,
-          "mean_pred": 0.16356599585080148,
+          "mean_pred": 0.1690788411052689,
           "mean_outcome": 0.25
         },
         {
           "bin_low": 0.2,
           "bin_high": 0.30000000000000004,
-          "n": 31,
-          "mean_pred": 0.2628829954826105,
-          "mean_outcome": 0.24193548387096775
+          "n": 29,
+          "mean_pred": 0.26590094632152755,
+          "mean_outcome": 0.20689655172413793
         },
         {
           "bin_low": 0.30000000000000004,
           "bin_high": 0.4,
-          "n": 81,
-          "mean_pred": 0.35115103900032657,
-          "mean_outcome": 0.3333333333333333
+          "n": 78,
+          "mean_pred": 0.3526263073065982,
+          "mean_outcome": 0.3269230769230769
         },
         {
           "bin_low": 0.4,
           "bin_high": 0.5,
-          "n": 113,
-          "mean_pred": 0.4514177727071347,
-          "mean_outcome": 0.39823008849557523
+          "n": 116,
+          "mean_pred": 0.4479709135451863,
+          "mean_outcome": 0.3879310344827586
         },
         {
           "bin_low": 0.5,
           "bin_high": 0.6000000000000001,
-          "n": 113,
-          "mean_pred": 0.5488073654160232,
-          "mean_outcome": 0.49557522123893805
+          "n": 126,
+          "mean_pred": 0.5521874533555087,
+          "mean_outcome": 0.5476190476190477
         },
         {
           "bin_low": 0.6000000000000001,
           "bin_high": 0.7000000000000001,
-          "n": 102,
-          "mean_pred": 0.6483414437488847,
-          "mean_outcome": 0.7156862745098039
+          "n": 95,
+          "mean_pred": 0.656894311309184,
+          "mean_outcome": 0.6947368421052632
         },
         {
           "bin_low": 0.7000000000000001,
           "bin_high": 0.8,
-          "n": 85,
-          "mean_pred": 0.7468145927029629,
-          "mean_outcome": 0.7529411764705882
+          "n": 79,
+          "mean_pred": 0.7485776951725998,
+          "mean_outcome": 0.7721518987341772
         },
         {
           "bin_low": 0.8,
           "bin_high": 0.9,
-          "n": 35,
-          "mean_pred": 0.842175833818118,
-          "mean_outcome": 0.9142857142857143
+          "n": 37,
+          "mean_pred": 0.8374635425404267,
+          "mean_outcome": 0.8648648648648649
         },
         {
           "bin_low": 0.9,
           "bin_high": 1.0,
           "n": 2,
-          "mean_pred": 0.9378738637820991,
+          "mean_pred": 0.9326627927796436,
           "mean_outcome": 1.0
         }
       ]
@@ -278,28 +280,31 @@
     },
     "seahawks_only": {
       "n": 37,
-      "log_loss": 0.6054789399863474,
-      "brier": 0.2085152577032645,
-      "accuracy": 0.7027027027027027,
+      "log_loss": 0.6051751960693388,
+      "brier": 0.20788780913835395,
+      "accuracy": 0.6756756756756757,
       "margin_mae": null
     },
     "per_season": [
       {
         "season": 2024,
         "n": 285,
-        "log_loss": 0.5954162447898264,
-        "brier": 0.20401413885137631,
+        "log_loss": 0.5953144334325207,
+        "brier": 0.20406856419618902,
         "accuracy": 0.6947368421052632,
-        "margin_mae": 9.747743545418547
+        "margin_mae": 9.798135080077332
       },
       {
         "season": 2025,
         "n": 285,
-        "log_loss": 0.6347699016531524,
-        "brier": 0.2215496721112317,
-        "accuracy": 0.6338028169014085,
-        "margin_mae": 10.0992607488223
+        "log_loss": 0.6351693197771551,
+        "brier": 0.22194686621479062,
+        "accuracy": 0.647887323943662,
+        "margin_mae": 10.08202983704648
       }
     ]
-  }
+  },
+  "previously_viewed": true,
+  "evaluated_at": "2026-10-06T18:08:35.677663+00:00",
+  "previous_config_fingerprint": "abc94385"
 }
