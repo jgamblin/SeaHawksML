@@ -1,6 +1,7 @@
 """Append-only prediction log (predictions/history.jsonl). Records are never rewritten."""
 
 import json
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -40,8 +41,8 @@ def validate(record: dict) -> None:
         raise ValueError(f"bad run_type {record['run_type']!r}")
 
 
-def append_record(record: dict, path: Path = PREDICTIONS_PATH) -> None:
-    validate(record)
+def append_record(record: dict, path: Path = PREDICTIONS_PATH, validator: Callable[[dict], None] = validate) -> None:
+    validator(record)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
         f.write(json.dumps(record, sort_keys=True) + "\n")
