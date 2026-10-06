@@ -1,7 +1,7 @@
 # Seahawks Game Prediction Model — Design
 
 **Date:** 2026-10-06
-**Status:** Draft, awaiting review
+**Status:** Draft v2, awaiting review
 
 ## Goal
 
@@ -14,18 +14,20 @@ The project is model-focused. The Vegas line is used only as a **benchmark** to 
 | Topic | Decision |
 |---|---|
 | Output (phase 1) | Seahawks win probability, plus predicted point margin with an interval |
-| Training target | Home-team point margin (regression), converted to win probability via `P(win) = Φ(margin / σ)` |
+| Training target | Home-team point margin (regression) |
+| Margin → probability | Empirical conditional margin distribution (not a Gaussian CDF), optionally ensembled with a binary win/loss classifier — chosen by backtest |
 | Training data | All NFL regular-season and playoff games, not only Seahawks games |
 | Model selection | Regularized linear model vs. LightGBM, chosen by walk-forward backtest |
 | Market line | Benchmark only (spread converted to probability); not a feature |
 | Delivery | Static dashboard on GitHub Pages, rebuilt by scheduled GitHub Actions |
+| Compute split | Hyperparameter tuning and full backtests run locally; CI only refits with locked hyperparameters |
 | Cost | $0 — no paid APIs, no API keys required |
 
 ## Data Sources
 
 | Source | What we use | Coverage |
 |---|---|---|
-| nflverse via `nflreadpy` | Schedules/results (kickoff time, roof, surface, rest, starting QBs, spread line), play-by-play with EPA, weekly player stats, injury reports, depth charts, snap counts, rosters | PBP 1999+, injuries 2009+ |
+| nflverse via `nflreadpy` | Schedules/results (kickoff time, roof, surface, rest, starting QBs, head coaches, spread line), play-by-play with EPA, weekly player stats, injury reports, depth charts, snap counts, rosters, draft picks | PBP 1999+, injuries 2009+ |
 | Open-Meteo archive API | Hourly historical weather at stadium coordinates for kickoff hour | Training |
 | Open-Meteo forecast API | Forecast weather at kickoff hour for the upcoming game | Prediction |
 | `data/stadiums.csv` (hand-maintained) | Stadium ID → lat/lon, time zone, roof type, surface, elevation; includes international venues | All |
@@ -40,6 +42,7 @@ Every feature for a game uses only information available before that game's kick
 - Rolling stats include only games strictly before the target game.
 - Injury/availability features use the final pre-game injury report, not post-game snap counts for that game.
 - Season-level priors use only prior seasons.
+- Anything fit on predictions (margin distribution, calibration, σ, ensemble weights) is fit only on data from training seasons of the current fold (see Evaluation).
 
 This is enforced by tests (see Testing).
 
@@ -48,15 +51,24 @@ This is enforced by tests (see Testing).
 All matchup features are expressed as **home minus away** differences (or as home/away pairs where a difference doesn't make sense), so the model is symmetric and doesn't learn artifacts of listing order. Neutral-site games set the home-field indicator to 0.
 
 ### Team strength
-- **Offensive and defensive EPA/play ratings.** Each team starts the season from its prior-season rating regressed toward league average; current-season games are blended in as they accumulate (weight on current season grows with games played). Exact shrinkage weights are tuned in backtest.
+- **Offensive and defensive EPA/play ratings.** Each team starts the season from its prior-season rating regressed toward league average; current-season games are blended in as they accumulate (weight on current season grows with games played). Shrinkage weights are tuned in backtest.
 - **Elo rating**, computed in-house from game results with margin-of-victory adjustment and preseason regression to the mean.
 
+### Regime change
+- **`new_head_coach`** (per team, binary): 1 if the team's head coach for this game differs from its head coach in the final game of the previous season. Source: nflverse schedule coach fields.
+- Used two ways:
+  1. As a model feature (home/away pair).
+  2. In the team-strength shrinkage: teams with a new head coach get a separate, tuned prior weight, so their prior-season rating is discounted faster as current-season games accumulate.
+- Mid-season coaching changes are not flagged in phase 1.
+
 ### Quarterback
-- **Starting-QB rating**: EPA/play + CPOE for the expected starter, shrunk toward a replacement-level prior based on sample size. When a backup starts, the team's rating uses the backup's QB value, not the team's season average.
+- **Starting-QB rating**: EPA/play + CPOE for the expected starter, shrunk toward a prior based on sample size. When a backup starts, the team's rating uses the backup's QB value, not the team's season average.
+- **`draft_capital`** seeds the QB prior: `round_1`, `day_2` (rounds 2–3), or `day_3_udfa` (rounds 4–7 and undrafted). Each bucket's prior mean and strength is estimated from historical early-career QB performance, using only seasons in the current training fold. This matters most for rookies and low-sample backups, whose rating is mostly prior. Source: nflverse draft picks joined to rosters.
+- `draft_capital` (of each team's expected starter) is also included directly as a categorical feature.
 - Expected starter comes from nflverse schedule QB fields for historical games and the latest depth chart for the upcoming game.
 
 ### Availability (phase-1 version)
-- Count of projected starters (from depth charts) listed **Out** or **Doubtful** on the final injury report, weighted by each player's snap share over the previous 4 games. Reported separately for offense and defense.
+- Count of projected starters (from depth charts) listed **Out** or **Doubtful** on the latest available injury report, weighted by each player's snap share over the previous 4 games. Reported separately for offense and defense.
 
 ### Situational
 - Rest days (difference), post-bye flag, short-week flag (e.g., Thursday after Sunday).
@@ -64,6 +76,11 @@ All matchup features are expressed as **home minus away** differences (or as hom
 - **Body clock**: kickoff time expressed in each team's home time zone (captures West Coast teams at 10am PT, East Coast teams at night in the West).
 - Primetime flag, divisional-game flag.
 - Home-field indicator, with home-field advantage allowed to drift over time (via recency weighting and a season-trend interaction; 2020 flagged as no-crowd season).
+
+### Season timing
+- **`week_number`**: regular-season week (playoff games get a separate `is_playoff` flag).
+- **`is_final_regular_week`**: 1 for the last regular-season week (Week 17 through 2020, Week 18 from 2021). Captures teams resting starters or evaluating depth.
+- Clinch/elimination status is out of scope for phase 1 (see Future Phases).
 
 ### Venue and weather
 - Roof type (indoor/retractable-closed games get neutral weather values and an indoor flag), surface type.
@@ -75,51 +92,100 @@ Expectation: weather will likely carry little weight for win prediction (it matt
 
 1. **Baseline: regularized linear regression** (ridge) on margin.
 2. **LightGBM regressor** on margin with conservative settings (shallow trees, strong regularization), since the signal-to-noise ratio is low and data is ~4,600 rows.
-3. **Conversion to probability:** σ is estimated from out-of-fold residuals; `P(home win) = Φ(predicted_margin / σ)`. If the backtest shows miscalibration, apply Platt scaling fitted on out-of-fold predictions.
-4. **Recency weighting:** training rows are weighted by an exponential time decay; the half-life is tuned in backtest.
+3. **Recency weighting:** training rows are weighted by an exponential time decay; the half-life is tuned in backtest.
 
 The model with the better walk-forward log-loss is promoted. If they're within noise, the linear model wins (simpler, more stable).
+
+### Margin → win probability
+
+NFL margins are multimodal (clustered at 3, 7, 10, 14), so a smooth Gaussian CDF misprices probability mass near key numbers. Two candidate methods, compared in backtest:
+
+- **A. Empirical conditional margin distribution (default).** For a predicted margin `m`, take historical games from the training fold, weight each by a kernel on `|predicted_margin_i − m|`, and use their **actual** margins as the outcome distribution. Then:
+  `P(home win) = P(margin > 0) + 0.5 · P(margin = 0)`
+  The kernel bandwidth is tuned in backtest. This also gives the margin interval directly.
+- **B. Ensemble with a binary classifier.** A regularized logistic regression on the same features, trained on win/loss (ties as 0.5 targets via sample weights), averaged with method A. The ensemble weight is tuned in backtest.
+
+Method B is adopted only if it improves walk-forward log-loss over A beyond noise.
+
+**Optional calibration:** if the backtest shows residual miscalibration, apply Platt scaling. The Platt model is fit **strictly inside each walk-forward fold** — only on out-of-fold predictions for that fold's training seasons (via an inner walk-forward over seasons < Y) — never globally on all out-of-fold predictions.
 
 **Explanations:** per-prediction feature contributions — coefficient × value for the linear model, LightGBM's native `pred_contrib` for the tree model. No SHAP dependency needed.
 
 ## Evaluation
 
-- **Walk-forward backtest:** for each season Y in 2012–2023, train on all seasons < Y, predict season Y. All tuning (shrinkage, decay half-life, hyperparameters) happens inside this loop.
+- **Walk-forward backtest:** for each season Y in 2012–2023, train on all seasons < Y, predict season Y. All tuning (shrinkage, decay half-life, hyperparameters, kernel bandwidth, ensemble weight) happens inside this loop.
+- **Nested fitting for anything fit on predictions:** the empirical margin distribution, ensemble weight, and Platt scaling for fold Y are fit only on out-of-fold predictions generated by an inner walk-forward over seasons < Y.
 - **Locked holdout:** seasons 2024–2025 are evaluated once, after model selection, and never used for tuning.
 - **Metrics:** log-loss (primary), Brier score, accuracy, margin MAE, calibration curve.
+- **Ties:** a tie is scored as an outcome of **0.5**:
+  - Log-loss: `−[0.5·log(p) + 0.5·log(1−p)]`
+  - Brier: `(p − 0.5)²`
+  - Accuracy: ties are excluded from the denominator.
+  - Margin MAE: actual margin = 0.
 - **Baselines:**
   - Home team always wins, at the historical home win rate
   - Elo only
-  - Vegas spread converted to probability with the same Φ mapping (benchmark ceiling; beating it is not expected)
+  - Vegas spread converted to probability with the same margin → probability method (benchmark ceiling; beating it is not expected)
 - Metrics are reported on **all games**. Seahawks-only results are shown for interest but are not used for decisions (~17 games/season is too noisy). Metrics include bootstrap confidence intervals.
 
-## Prediction Run (weekly)
+## Prediction Runs
 
-1. Refresh nflverse data and fetch Open-Meteo forecast for the next Seahawks game's kickoff.
-2. Build the feature row using the same feature code as training (no separate code path).
-3. Load the current promoted model, predict margin, win probability, and an 80% margin interval.
-4. Append the prediction to `predictions/history.jsonl` with a timestamp and the data snapshot date. **This file is append-only**, so the track record reflects what was predicted before kickoff.
-5. After games complete, a results step fills in actual outcomes for scored predictions.
+Each upcoming Seahawks game gets up to three predictions, timed relative to that game's kickoff (so Thursday, Saturday, Monday, and international games work the same as Sunday games):
+
+| Run | When | Purpose |
+|---|---|---|
+| `midweek` | ~4 days before kickoff (Wednesday for a Sunday game) | Early read with latest depth charts |
+| `final_injury` | Day before kickoff (Saturday for a Sunday game) | After the final injury report |
+| `gameday` | ~3 hours before kickoff | Final Open-Meteo forecast; wind and precipitation timing shift a lot after Saturday |
+
+Each run:
+1. Refreshes data for the current season and fetches the Open-Meteo forecast for kickoff hour.
+2. Builds the feature row using the same feature code as training (no separate code path).
+3. Loads the current promoted model and predicts margin, win probability, and an 80% margin interval.
+4. **Appends** a record to `predictions/history.jsonl`. Records are never overwritten. Each record includes:
+   - `game_id`, `run_type` (`midweek` / `final_injury` / `gameday`), `predicted_at` timestamp
+   - `is_final_injury_report`: true if the run happened after the final injury report for that game was published
+   - Data snapshot info (latest injury report date seen, forecast issue time)
+   - Win probability, predicted margin, margin interval, top feature contributions
+   - Model version
+5. After the game, a results step appends the actual outcome (a separate `result` record keyed by `game_id`).
+
+**Scoring rule:** the track record scores the **last pre-kickoff prediction** for each game (normally `gameday`). Earlier runs are kept for the trajectory display.
+
+If the forecast isn't available yet (game > 16 days out), the weather feature uses the stadium's historical average for that week and the record is flagged.
 
 ## Automation (GitHub Actions)
 
 | Workflow | Schedule | Does |
 |---|---|---|
-| `predict.yml` | Wed and Sat (after final injury reports) during the season, plus manual trigger | Refresh data → predict next SEA game → update results → build site → commit → Pages deploy |
-| `retrain.yml` | Tuesday weekly during season, plus manual trigger | Refresh data → rebuild features → retrain → run backtest → commit model + metrics |
+| `predict.yml` | Hourly cron during the season (Sep–Feb) + manual trigger | A cheap gate step checks the next Seahawks kickoff. If a `midweek`, `final_injury`, or `gameday` run is due and hasn't run yet, it predicts → updates results → builds site → commits → Pages deploys. Otherwise exits in seconds. |
+| `retrain.yml` | Tuesday weekly during season + manual trigger | Refresh data → rebuild features → refit model with locked hyperparameters → commit model + metrics |
 
+Notes on the gate:
+- GitHub cron can run late or skip runs under load, so each run type has a window (e.g., `gameday` = between 4h and 1.5h before kickoff) and whichever hourly run lands in the window first does it. Records note the actual `predicted_at` time.
+- Season-off months: the cron is limited to Sep–Feb, and the gate exits if there's no upcoming game.
+
+### Compute limits
+
+The full walk-forward backtest with hyperparameter search (nested folds × hyperparameter grid × two model families) is too heavy for CI's 6-hour job limit and standard runner memory. So:
+
+- **Locally (offseason or manually):** `backtest` runs the full walk-forward tuning and the holdout evaluation. It writes the chosen hyperparameters, shrinkage weights, decay half-life, kernel bandwidth, and ensemble weight to `models/config.json`, plus backtest metrics to `models/backtest.json`. Both are committed.
+- **In CI (during the season):** `retrain` reads the locked `models/config.json` and only refits final model weights on all completed games, plus the empirical margin distribution / calibration it needs (a handful of refits with fixed settings — minutes, not hours). No hyperparameter search runs in CI.
+- **Memory:** only the current season's raw data is re-downloaded in CI; completed seasons' derived features are committed as a parquet file and reused. Play-by-play is read lazily with only the needed columns.
+
+Other automation rules:
 - Raw nflverse/weather downloads are cached with `actions/cache`, not committed.
-- Committed: the derived feature table (small parquet), the trained model artifact, metrics JSON, prediction history, and the built site in `docs/`.
+- Committed: derived feature table, trained model artifact, `config.json`, metrics JSON, prediction history, and the built site in `docs/`.
 - If any data fetch fails, the workflow fails without publishing; the dashboard always shows a "last updated" timestamp.
-- If the forecast isn't available yet (game > 16 days out), the weather feature uses the stadium's historical average for that week and the dashboard flags it.
 
 ## Dashboard
 
 Static HTML + JSON in `docs/`, served by GitHub Pages:
 1. **Next game:** opponent, kickoff, venue, weather; Seahawks win probability, predicted margin ± interval; Vegas spread-implied probability shown as a benchmark.
-2. **Why:** top feature contributions for this prediction.
-3. **Season log:** every 2026 Seahawks prediction vs. actual result.
-4. **Model report:** backtest metrics vs. baselines, calibration plot, holdout results.
+2. **Weekly trajectory:** win probability across `midweek` → `final_injury` → `gameday` runs, with a short note on what changed between runs (e.g., injury status changes, forecast shifts).
+3. **Why:** top feature contributions for the latest prediction.
+4. **Season log:** every 2026 Seahawks game — scored (last pre-kickoff) prediction vs. actual result, with the trajectory available per game.
+5. **Model report:** backtest metrics vs. baselines, calibration plot, holdout results.
 
 ## Repository Layout
 
@@ -128,12 +194,15 @@ pyproject.toml                 # uv-managed; Python 3.12 in CI
 data/stadiums.csv
 seahawks_ml/
   ingest/      nflverse.py, weather.py, stadiums.py
-  features/    ratings.py (EPA + shrinkage), qb.py, elo.py,
-               situational.py, availability.py, weather.py, build.py
-  models/      train.py, backtest.py, predict.py, results.py
+  features/    ratings.py (EPA + shrinkage), qb.py (incl. draft capital), elo.py,
+               coaching.py, situational.py, season_timing.py, availability.py,
+               weather.py, build.py
+  models/      train.py, margin_dist.py, calibrate.py, backtest.py,
+               predict.py, results.py
+  pipeline/    gate.py (decides which run, if any, is due)
   site/        build.py, templates/
 predictions/history.jsonl
-models/        # promoted model artifact + metrics.json
+models/        # promoted model artifact, config.json, backtest.json, metrics.json
 docs/          # built dashboard (GitHub Pages)
 tests/
 .github/workflows/predict.yml, retrain.yml
@@ -145,19 +214,22 @@ Stack: polars (nflreadpy's native format), scikit-learn, lightgbm, httpx for Ope
 
 ## Testing
 
-- **Leakage tests:** for sampled games, recompute features with all data after that game's kickoff removed; results must be identical to the full-data features.
-- **Unit tests:** Elo update, rating shrinkage, travel distance/time zones, body-clock calculation, availability weighting, Φ conversion.
-- **Schema tests:** feature table has expected columns, types, no unexpected nulls, one row per game.
-- **Smoke test:** full pipeline (ingest from fixtures → features → train → predict → site build) on a small fixture dataset, run in CI on every push.
+- **Leakage tests:** for sampled games, recompute features with all data after that game's kickoff removed; results must be identical to the full-data features. Also check that the margin distribution and calibration for fold Y never see season Y data.
+- **Unit tests:** Elo update, rating shrinkage (including new-coach path), QB draft-capital prior, travel distance/time zones, body-clock calculation, availability weighting, final-regular-week detection across the 2021 schedule change, empirical margin → probability (including tie mass), tie handling in metrics.
+- **Gate tests:** given a schedule and current time, the gate picks the correct run type (or none) for Sunday, Thursday, Monday, Saturday, and international kickoffs, and doesn't repeat a run already in `history.jsonl`.
+- **Schema tests:** feature table has expected columns, types, no unexpected nulls, one row per game; `history.jsonl` records match the schema.
+- **Smoke test:** full pipeline (ingest from fixtures → features → train with a fixed config → predict → site build) on a small fixture dataset, run in CI on every push.
 
 ## Out of Scope (Phase 1)
 
 - Full player-value model (all positions)
-- Score/total predictions and empirical margin distributions
+- Score/total predictions
+- Clinch/elimination status for late-season motivation
+- Mid-season coaching change detection
 - Live or historical line snapshots, betting-specific metrics
 - Seahawks-specific model or weighting
 
 ## Future Phases
 
-- **Phase 2:** player-value ratings (snap share × per-play contribution by position) replacing the simple availability count.
+- **Phase 2:** player-value ratings (snap share × per-play contribution by position) replacing the simple availability count; clinch/elimination status for Weeks 15–18.
 - **Phase 3:** team-score model (points for each team), yielding totals and score distributions where weather should matter more.
