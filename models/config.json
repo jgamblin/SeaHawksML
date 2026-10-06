@@ -22,5 +22,17 @@
   "qb": {
     "prior_dropbacks": 150.0,
     "window_seasons": 3
+  },
+  "availability": {
+    "mode": "count_diff",
+    "prior_opps": 60.0,
+    "quality_scale": 4.0,
+    "lineman_quality": {
+      "round_1": 1.3,
+      "day_2": 1.1,
+      "later": 1.0,
+      "udfa": 0.9
+    },
+    "durability_weight": 0.5
   }
 }

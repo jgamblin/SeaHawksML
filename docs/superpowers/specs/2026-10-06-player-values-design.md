@@ -31,3 +31,20 @@ Replace each missing starter's weight (snap share) with `snap_share × quality`,
 ## Dashboard
 - Factor labels for the new columns ("Offensive line value out", …).
 - Seahawks prediction records gain nothing new; the "Why" factors and "What changed" notes pick up the new columns automatically.
+
+## Outcome (2026-10-06)
+
+Walk-forward 2012–2023 log-loss, stage-0c settings:
+
+| Availability representation | Log-loss |
+|---|---|
+| count (4 columns, previous default) | 0.62840 |
+| **count_diff (2 pooled home−away columns) — locked** | **0.62816** |
+| values_pooled, best (prior 90, scale 2) | 0.62817 |
+| values (6 quality-weighted group diffs), best | 0.62991 |
+| groups (6 snap-weighted group diffs) | 0.63012 |
+| no injury information | 0.62883 |
+
+- Per-group columns overfit: each group's signal is small (|corr| ≤ 0.055 with margin, DL has the wrong sign) and early folds learn from ~260 games of injury data, so six separately fitted coefficients add noise. No bug: group sums reproduce the count features exactly.
+- Pooling fixes the overfitting, but player-quality weighting adds nothing measurable over snap-share counts with free data (0.62817 vs 0.62816).
+- Locked: `count_diff`. Final model 0.6277 (was 0.6279). The quality-weighted modes stay in the code and in the tuning grid, so they're re-tested whenever the backtest runs; the live league scorecard is the honest judge going forward.

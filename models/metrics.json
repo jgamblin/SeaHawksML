@@ -1,6 +1,6 @@
 {
-  "model_version": "20261006-13df2d7b",
-  "trained_at": "2026-10-06T18:08:37.644946+00:00",
+  "model_version": "20261006-690167d9",
+  "trained_at": "2026-10-06T19:12:32.756489+00:00",
   "train_seasons": [
     2009,
     2010,
@@ -46,6 +46,18 @@
     "qb": {
       "prior_dropbacks": 150.0,
       "window_seasons": 3
+    },
+    "availability": {
+      "mode": "count_diff",
+      "prior_opps": 60.0,
+      "quality_scale": 4.0,
+      "lineman_quality": {
+        "round_1": 1.3,
+        "day_2": 1.1,
+        "later": 1.0,
+        "udfa": 0.9
+      },
+      "durability_weight": 0.5
     }
   },
   "feature_columns": [
@@ -74,6 +86,14 @@
     "away_off_out",
     "away_def_out",
     "availability_known",
+    "out_ol_diff",
+    "out_wrte_diff",
+    "out_rb_diff",
+    "out_dl_diff",
+    "out_lb_diff",
+    "out_db_diff",
+    "off_out_diff",
+    "def_out_diff",
     "rest_diff",
     "home_post_bye",
     "away_post_bye",
