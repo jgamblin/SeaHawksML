@@ -95,7 +95,11 @@ def test_position_groups():
                 "CB": "db", "S": "db", "SS": "db", "FS": "db", "DB": "db", "SAF": "db"}
     for pos, group in expected.items():
         assert position_group(pos) == group, pos
-    for pos in ("QB", "K", "P", "LS", None, "??"):
+    # real snap counts carry combined labels; the first listed position decides
+    for pos, group in {"C/G": "ol", "G/T": "ol", "TE/D": "wrte", "WR/R": "wrte", "FB/T": "rb",
+                       "DE/L": "dl", "DT/D": "dl", "LB/S": "lb", "CB/R": "db", "DB/L": "db"}.items():
+        assert position_group(pos) == group, pos
+    for pos in ("QB", "K", "P", "LS", "K/P", None, "??"):
         assert position_group(pos) is None, pos
     assert GROUPS == ("ol", "wrte", "rb", "dl", "lb", "db")
 

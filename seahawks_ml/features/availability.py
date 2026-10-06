@@ -76,8 +76,11 @@ class AvailabilityParams:
 
 
 def position_group(position: str | None) -> str | None:
-    """Position group of a snap-count (or players-table) position; None for QB/K/P/LS/unknown."""
-    return POSITION_GROUPS.get(position) if position else None
+    """Position group of a snap-count (or players-table) position; None for QB/K/P/LS/unknown.
+
+    Combined snap-count labels such as "C/G" or "DE/L" use the first listed position.
+    """
+    return POSITION_GROUPS.get(position.split("/")[0]) if position else None
 
 
 def draft_bucket(draft_round: int | None) -> str:
