@@ -9,6 +9,7 @@ report rows at all (the report is not out yet, so availability is unknown, not z
 """
 
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 import polars as pl
 
@@ -17,6 +18,32 @@ from seahawks_ml.config import FIRST_SNAP_SEASON
 OUT_STATUSES = {"Out", "Doubtful"}
 STARTER_SHARE = 0.5
 MIN_APPEARANCES = 2
+AVAILABILITY_MODES = ("count", "groups", "values")
+
+
+def _default_lineman_quality() -> dict[str, float]:
+    return {"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9}
+
+
+@dataclass(frozen=True)
+class AvailabilityParams:
+    """How missing starters are turned into features.
+
+    mode: "count" - the four off/def snap-share columns; "groups" - six per-position-group
+    snap-share columns; "values" - the same six groups weighted by player quality.
+    prior_opps / quality_scale: skill-player (WR/TE, RB) EPA-per-opportunity shrinkage and scale.
+    lineman_quality / durability_weight: OL/DL/LB/DB quality from draft bucket and snap durability.
+    """
+
+    mode: str = "count"
+    prior_opps: float = 60.0
+    quality_scale: float = 4.0
+    lineman_quality: dict[str, float] = field(default_factory=_default_lineman_quality)
+    durability_weight: float = 0.5
+
+    def __post_init__(self):
+        if self.mode not in AVAILABILITY_MODES:
+            raise ValueError(f"unknown availability mode {self.mode!r}")
 
 
 def compute_availability(

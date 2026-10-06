@@ -43,6 +43,28 @@ def test_old_config_without_rating_toggles_loads_off(tmp_path):
     assert loaded.rating.extra_stats is False
 
 
+def test_config_round_trip_with_availability(tmp_path):
+    from seahawks_ml.features.availability import AvailabilityParams
+
+    avail = AvailabilityParams(mode="values", prior_opps=30.0, quality_scale=6.0,
+                               lineman_quality={"round_1": 1.5, "day_2": 1.2, "later": 1.0, "udfa": 0.8},
+                               durability_weight=0.25)
+    cfg = ProjectConfig(availability=avail)
+    save_config(cfg, tmp_path / "c.json")
+    loaded = load_config(tmp_path / "c.json")
+    assert loaded == cfg and loaded.availability == avail
+    assert loaded.fingerprint() == cfg.fingerprint() != ProjectConfig().fingerprint()
+
+
+def test_old_config_without_availability_means_count(tmp_path):
+    import json
+
+    d = ProjectConfig().to_dict()
+    del d["availability"]
+    (tmp_path / "c.json").write_text(json.dumps(d))
+    assert load_config(tmp_path / "c.json").availability.mode == "count"
+
+
 def test_completed_seasons_skips_unplayed():
     frame = make_feature_frame(seasons=range(2009, 2013)).with_columns(
         pl.when(pl.col("season") == 2012).then(None).otherwise(pl.col("margin")).alias("margin"))

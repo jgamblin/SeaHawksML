@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from seahawks_ml.config import MODELS_DIR
+from seahawks_ml.features.availability import AvailabilityParams
 from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.features.qb import QBParams
 from seahawks_ml.features.ratings import RatingParams
@@ -24,15 +25,19 @@ class ProjectConfig:
     model: ModelConfig = field(default_factory=ModelConfig)
     rating: RatingParams = field(default_factory=RatingParams)
     qb: QBParams = field(default_factory=QBParams)
+    availability: AvailabilityParams = field(default_factory=AvailabilityParams)
 
     def to_dict(self) -> dict:
-        return {"model": self.model.to_dict(), "rating": asdict(self.rating), "qb": asdict(self.qb)}
+        return {"model": self.model.to_dict(), "rating": asdict(self.rating), "qb": asdict(self.qb),
+                "availability": asdict(self.availability)}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectConfig":
         # toggles added later default to off so an old config means what it meant
         rating = {"opponent_adjust": False, "extra_stats": False, **d["rating"]}
-        return cls(ModelConfig.from_dict(d["model"]), RatingParams(**rating), QBParams(**d["qb"]))
+        availability = {"mode": "count", **d.get("availability", {})}
+        return cls(ModelConfig.from_dict(d["model"]), RatingParams(**rating), QBParams(**d["qb"]),
+                   AvailabilityParams(**availability))
 
     def fingerprint(self) -> str:
         return hashlib.sha1(json.dumps(self.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
