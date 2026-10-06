@@ -11,11 +11,17 @@ on:
         type: choice
         options: ["", "midweek", "final_injury", "gameday"]
         default: ""
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+      publish_only:
+        description: "Rebuild and deploy the site without running a prediction"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "seahawks_ml/site/**"
+      - "models/metrics.json"
+      - "models/backtest.json"
+      - "models/holdout.json"
 
 concurrency:
   group: repo-writes
@@ -25,13 +31,18 @@ jobs:
   predict:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     outputs:
-      changed: ${{ steps.predict.outputs.changed }}
+      publish: ${{ steps.publish.outputs.publish }}
+    env:
+      PUBLISH_ONLY: ${{ github.event_name == 'push' || inputs.publish_only == true }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --frozen
       - id: predict
+        if: env.PUBLISH_ONLY != 'true'
         env:
           RUN_TYPE: ${{ inputs.run_type }}
         run: uv run python -m seahawks_ml.cli predict ${RUN_TYPE:+--run-type "$RUN_TYPE"}
@@ -44,18 +55,31 @@ jobs:
           git diff --cached --quiet || git commit -m "predict: $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase
           git push
+      - id: publish
+        name: Decide whether to publish
+        env:
+          CHANGED: ${{ steps.predict.outputs.changed }}
+        run: |
+          if [ "$CHANGED" = "true" ] || [ "$PUBLISH_ONLY" = "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build site
-        if: steps.predict.outputs.changed == 'true'
+        if: steps.publish.outputs.publish == 'true'
         run: uv run python -m seahawks_ml.cli build-site
       - uses: actions/upload-pages-artifact@v3
-        if: steps.predict.outputs.changed == 'true'
+        if: steps.publish.outputs.publish == 'true'
         with:
           path: public
 
   deploy:
     needs: predict
-    if: needs.predict.outputs.changed == 'true'
+    if: needs.predict.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
