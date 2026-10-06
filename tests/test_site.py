@@ -132,3 +132,20 @@ def test_build_site_league_empty_state(tmp_path):
     html = build_site(datetime(2026, 10, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
                       out_dir=tmp_path / "s", league_path=tmp_path / "none2.jsonl").read_text()
     assert "No completed games yet" in html and 'id="leaguechart"' not in html
+
+
+def test_build_site_reads_league_path_at_call_time(tmp_path, monkeypatch):
+    from seahawks_ml.pipeline.league import validate_league
+    from seahawks_ml.site import build
+    lpath = tmp_path / "l.jsonl"
+    for r in _league_log():
+        append_record(r, lpath, validate_league)
+    monkeypatch.setattr(build, "LEAGUE_PATH", lpath)
+    html = build_site(datetime(2026, 10, 12, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                      out_dir=tmp_path / "s").read_text()
+    assert 'id="leaguechart"' in html
+
+
+def test_site_data_has_no_model_files_by_default(tmp_path):
+    data = build_site_data([], datetime(2026, 10, 12, tzinfo=UTC))
+    assert data["metrics"] is None and data["backtest"] is None and data["holdout"] is None

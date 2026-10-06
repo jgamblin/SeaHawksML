@@ -68,8 +68,9 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
 
 
 def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PATH,
-               out_dir: Path = SITE_DIR, league_path: Path = LEAGUE_PATH) -> Path:
+               out_dir: Path = SITE_DIR, league_path: Path | None = None) -> Path:
     now = now or datetime.now(UTC)
+    league_path = LEAGUE_PATH if league_path is None else league_path  # looked up at call time
     data = build_site_data(read_history(history_path), now, read_history(league_path))
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
