@@ -113,3 +113,19 @@ def test_fetch_archive_live():
         df = fetch_archive(client, load_stadiums()["SEA00"],
                            datetime(2024, 9, 8).date(), datetime(2024, 9, 8).date())
     assert df.height == 24
+
+
+def test_update_archive_cache_drops_null_temperature_rows(tmp_path):
+    def handler(request):
+        payload = _payload([f"2024-09-08T{h:02d}:00" for h in range(24)])
+        payload["hourly"]["temperature_2m"][21] = None
+        return httpx.Response(200, json=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    games = _games([{"game_id": "a", "stadium_id": "SEA00", "roof": "outdoors",
+                     "kickoff_utc": datetime(2024, 9, 8, 20, 5, tzinfo=UTC)}])
+    path = tmp_path / "w.parquet"
+    out = update_archive_cache(games, load_stadiums(), datetime(2024, 10, 1, tzinfo=UTC),
+                               client=client, cache_path=path, pause=0)
+    assert out.height == 3 and out["temp_f"].null_count() == 0
+    assert pl.read_parquet(path).height == 3

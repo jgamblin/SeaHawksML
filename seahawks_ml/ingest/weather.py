@@ -130,7 +130,7 @@ def update_archive_cache(
             parts = []
             for first, last in windows:
                 parts.append(fetch_archive(client, stadiums[stadium_id], first, last)
-                             .filter(pl.col("time_utc").is_in(list(hours_set))))
+                             .filter(pl.col("time_utc").is_in(list(hours_set)) & pl.col("temp_f").is_not_null()))
                 time.sleep(pause)
             cached = pl.concat([cached, *parts]).unique(["stadium_id", "time_utc"]).sort("stadium_id", "time_utc")
             cache_path.parent.mkdir(parents=True, exist_ok=True)
