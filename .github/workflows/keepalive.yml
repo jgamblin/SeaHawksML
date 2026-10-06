@@ -21,3 +21,26 @@ jobs:
           for wf in predict.yml retrain.yml keepalive.yml; do
             gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable"
           done
+
+  notify-failure:
+    needs: [keepalive]
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WORKFLOW_NAME: ${{ github.workflow }}
+    steps:
+      - name: Open or update a failure issue
+        run: |
+          existing=$(gh issue list --repo "${{ github.repository }}" --label workflow-failure --state open \
+            --search "in:title \"$WORKFLOW_NAME\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "${{ github.repository }}" --body "Failed again: $RUN_URL"
+          else
+            gh label create workflow-failure --repo "${{ github.repository }}" --color B60205 --force
+            gh issue create --repo "${{ github.repository }}" --label workflow-failure \
+              --title "Scheduled workflow failing: $WORKFLOW_NAME" --body "The scheduled run failed: $RUN_URL"
+          fi

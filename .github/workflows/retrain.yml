@@ -39,7 +39,7 @@ jobs:
 
   notify-failure:
     needs: [retrain]
-    if: failure() && github.event_name == 'schedule'
+    if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       issues: write
