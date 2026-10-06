@@ -46,3 +46,9 @@ def test_calibration_table_bins():
     rows = calibration_table(np.array([0.05, 0.15, 0.95]), np.array([0.0, 1.0, 1.0]), bins=10)
     assert [r["n"] for r in rows] == [1, 1, 1]
     assert rows[-1]["bin_low"] == pytest.approx(0.9)
+
+
+def test_accuracy_half_credit_at_even_odds():
+    p = np.array([0.5, 0.5, 0.7, 0.3])
+    y = np.array([1.0, 0.0, 1.0, 0.0])
+    assert accuracy(p, y) == (0.5 + 0.5 + 1 + 1) / 4

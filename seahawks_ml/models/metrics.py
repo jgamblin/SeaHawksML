@@ -22,12 +22,14 @@ def brier(p: np.ndarray, y: np.ndarray) -> float:
 
 
 def accuracy(p: np.ndarray, y: np.ndarray) -> float:
-    """Share of non-tie games where the favored side won. Ties are excluded."""
+    """Share of non-tie games where the favored side won; p == 0.5 earns half credit. Ties are excluded."""
     p, y = np.asarray(p, dtype=float), np.asarray(y, dtype=float)
     keep = y != 0.5
     if not keep.any():
         return float("nan")
-    return float(np.mean((p[keep] > 0.5) == (y[keep] == 1.0)))
+    p, y = p[keep], y[keep]
+    credit = np.where(p == 0.5, 0.5, ((p > 0.5) == (y == 1.0)).astype(float))
+    return float(np.mean(credit))
 
 
 def margin_mae(pred: np.ndarray, actual: np.ndarray) -> float:
