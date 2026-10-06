@@ -30,7 +30,9 @@ class ProjectConfig:
 
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectConfig":
-        return cls(ModelConfig.from_dict(d["model"]), RatingParams(**d["rating"]), QBParams(**d["qb"]))
+        # toggles added later default to off so an old config means what it meant
+        rating = {"opponent_adjust": False, "extra_stats": False, **d["rating"]}
+        return cls(ModelConfig.from_dict(d["model"]), RatingParams(**rating), QBParams(**d["qb"]))
 
     def fingerprint(self) -> str:
         return hashlib.sha1(json.dumps(self.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
