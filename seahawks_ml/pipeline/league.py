@@ -7,7 +7,6 @@ from datetime import datetime
 import numpy as np
 import polars as pl
 
-from seahawks_ml.config import LEAGUE_PATH  # noqa: F401  (re-exported for callers)
 from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.features.elo import elo_win_prob
 from seahawks_ml.models.metrics import log_loss, outcome, summarize
@@ -129,7 +128,7 @@ def _clean(metrics: dict | None) -> dict | None:
     return {k: None if isinstance(v, float) and not math.isfinite(v) else v for k, v in metrics.items()}
 
 
-def league_scorecard(league_log: list[dict], season: int | None) -> dict:
+def league_scorecard(league_log: list[dict], season: int) -> dict:
     """Model vs Vegas vs Elo on completed games of `season`. Compared on the common set of games that
     have a Vegas line (all games if none do); `n_all` counts every completed game."""
     results = {r["game_id"]: r for r in league_log if r["type"] == "league_result"}
