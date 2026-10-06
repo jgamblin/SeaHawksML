@@ -1,7 +1,7 @@
 # Seahawks Game Prediction Model — Design
 
 **Date:** 2026-10-06
-**Status:** Draft v2, awaiting review
+**Status:** v3 — approved; revised after verifying against real data (see "Revisions after data verification")
 
 ## Goal
 
@@ -15,7 +15,7 @@ The project is model-focused. The Vegas line is used only as a **benchmark** to 
 |---|---|
 | Output (phase 1) | Seahawks win probability, plus predicted point margin with an interval |
 | Training target | Home-team point margin (regression) |
-| Margin → probability | Empirical conditional margin distribution (not a Gaussian CDF), optionally ensembled with a binary win/loss classifier — chosen by backtest |
+| Margin → probability | Empirical conditional margin distribution **or** Gaussian CDF (σ from out-of-fold residuals), optionally ensembled with a binary win/loss classifier — all chosen by backtest |
 | Training data | All NFL regular-season and playoff games, not only Seahawks games |
 | Model selection | Regularized linear model vs. LightGBM, chosen by walk-forward backtest |
 | Market line | Benchmark only (spread converted to probability); not a feature |
@@ -27,7 +27,7 @@ The project is model-focused. The Vegas line is used only as a **benchmark** to 
 
 | Source | What we use | Coverage |
 |---|---|---|
-| nflverse via `nflreadpy` | Schedules/results (kickoff time, roof, surface, rest, starting QBs, head coaches, spread line), play-by-play with EPA, weekly player stats, injury reports, depth charts, snap counts, rosters, draft picks | PBP 1999+, injuries 2009+ |
+| nflverse via `nflreadpy` | Schedules/results (kickoff time, roof, rest, starting/projected QBs, head coaches, spread line), play-by-play with EPA, injury reports, snap counts, players (draft round, PFR↔GSIS ids) | PBP 1999+, injuries 2009+, snaps 2013+ |
 | Open-Meteo archive API | Hourly historical weather at stadium coordinates for kickoff hour | Training |
 | Open-Meteo forecast API | Forecast weather at kickoff hour for the upcoming game | Prediction |
 | `data/stadiums.csv` (hand-maintained) | Stadium ID → lat/lon, time zone, roof type, surface, elevation; includes international venues | All |
@@ -65,10 +65,11 @@ All matchup features are expressed as **home minus away** differences (or as hom
 - **Starting-QB rating**: EPA/play + CPOE for the expected starter, shrunk toward a prior based on sample size. When a backup starts, the team's rating uses the backup's QB value, not the team's season average.
 - **`draft_capital`** seeds the QB prior: `round_1`, `day_2` (rounds 2–3), or `day_3_udfa` (rounds 4–7 and undrafted). Each bucket's prior mean and strength is estimated from historical early-career QB performance, using only seasons in the current training fold. This matters most for rookies and low-sample backups, whose rating is mostly prior. Source: nflverse draft picks joined to rosters.
 - `draft_capital` (of each team's expected starter) is also included directly as a categorical feature.
-- Expected starter comes from nflverse schedule QB fields for historical games and the latest depth chart for the upcoming game.
+- Expected starter comes from the nflverse schedule QB fields, which are populated with the projected starter for upcoming games too.
 
 ### Availability (phase-1 version)
-- Count of projected starters (from depth charts) listed **Out** or **Doubtful** on the latest available injury report, weighted by each player's snap share over the previous 4 games. Reported separately for offense and defense.
+- Count of starters listed **Out** or **Doubtful** on that week's injury report, weighted by snap share. A starter is a non-QB averaging ≥50% of offense or defense snaps over the team's previous 4 games (min. 2 appearances). Reported separately for offense and defense.
+- Snap counts exist from 2013; earlier games get 0 plus `availability_known = 0`.
 
 ### Situational
 - Rest days (difference), post-bye flag, short-week flag (e.g., Thursday after Sunday).
@@ -84,7 +85,7 @@ All matchup features are expressed as **home minus away** differences (or as hom
 
 ### Venue and weather
 - Roof type (indoor/retractable-closed games get neutral weather values and an indoor flag), surface type.
-- Kickoff-hour temperature, wind speed, precipitation from Open-Meteo.
+- Game-window (kickoff hour + 3) mean temperature and wind, total precipitation, from Open-Meteo. Outdoor games with no cached hours fall back to stadium same-month climatology; `weather_source` records which was used.
 
 Expectation: weather will likely carry little weight for win prediction (it matters more for totals). It's kept because it's cheap and a future score model will use it.
 
@@ -98,14 +99,16 @@ The model with the better walk-forward log-loss is promoted. If they're within n
 
 ### Margin → win probability
 
-NFL margins are multimodal (clustered at 3, 7, 10, 14), so a smooth Gaussian CDF misprices probability mass near key numbers. Two candidate methods, compared in backtest:
+NFL margins are multimodal (clustered at 3, 7, 10, 14), so a smooth Gaussian CDF misprices probability mass near key numbers. Candidate methods, compared in backtest:
 
 - **A. Empirical conditional margin distribution (default).** For a predicted margin `m`, take historical games from the training fold, weight each by a kernel on `|predicted_margin_i − m|`, and use their **actual** margins as the outcome distribution. Then:
   `P(home win) = P(margin > 0) + 0.5 · P(margin = 0)`
   The kernel bandwidth is tuned in backtest. This also gives the margin interval directly.
 - **B. Ensemble with a binary classifier.** A regularized logistic regression on the same features, trained on win/loss (ties as 0.5 targets via sample weights), averaged with method A. The ensemble weight is tuned in backtest.
 
-Method B is adopted only if it improves walk-forward log-loss over A beyond noise.
+- **C. Gaussian CDF.** `Φ(m/σ)`, σ from out-of-fold residuals. Kept as a candidate because on 2012–2023 real data it scored 0.629 log-loss vs 0.631–0.636 for method A (key numbers matter more for spreads than for win/loss).
+
+The tuned backtest picks among A, C, and an ensemble with B; B is adopted only if it improves walk-forward log-loss beyond noise.
 
 **Optional calibration:** if the backtest shows residual miscalibration, apply Platt scaling. The Platt model is fit **strictly inside each walk-forward fold** — only on out-of-fold predictions for that fold's training seasons (via an inner walk-forward over seasons < Y) — never globally on all out-of-fold predictions.
 
@@ -145,7 +148,7 @@ Each run:
 4. **Appends** a record to `predictions/history.jsonl`. Records are never overwritten. Each record includes:
    - `game_id`, `run_type` (`midweek` / `final_injury` / `gameday`), `predicted_at` timestamp
    - `is_final_injury_report`: true if the run happened after the final injury report for that game was published
-   - Data snapshot info (latest injury report date seen, forecast issue time)
+   - Data snapshot info: latest injury-report week seen for SEA, weather source (Open-Meteo doesn't expose a forecast issue time; `predicted_at` serves as the snapshot time)
    - Win probability, predicted margin, margin interval, top feature contributions
    - Model version
 5. After the game, a results step appends the actual outcome (a separate `result` record keyed by `game_id`).
@@ -174,13 +177,13 @@ The full walk-forward backtest with hyperparameter search (nested folds × hyper
 - **Memory:** only the current season's raw data is re-downloaded in CI; completed seasons' derived features are committed as a parquet file and reused. Play-by-play is read lazily with only the needed columns.
 
 Other automation rules:
-- Raw nflverse/weather downloads are cached with `actions/cache`, not committed.
-- Committed: derived feature table, trained model artifact, `config.json`, metrics JSON, prediction history, and the built site in `docs/`.
+- Compact caches (per-season pbp aggregates, injuries, snaps, game-hour weather) live in `data/cache/` and are committed, so CI only refreshes the current season and never re-downloads the weather archive.
+- Committed: data cache, derived feature table, trained model artifact, `config.json`, metrics JSON, prediction history. The site is built to `public/` and deployed as a GitHub Pages artifact (so `docs/` stays documentation-only).
 - If any data fetch fails, the workflow fails without publishing; the dashboard always shows a "last updated" timestamp.
 
 ## Dashboard
 
-Static HTML + JSON in `docs/`, served by GitHub Pages:
+Static HTML + JSON in `public/`, deployed to GitHub Pages:
 1. **Next game:** opponent, kickoff, venue, weather; Seahawks win probability, predicted margin ± interval; Vegas spread-implied probability shown as a benchmark.
 2. **Weekly trajectory:** win probability across `midweek` → `final_injury` → `gameday` runs, with a short note on what changed between runs (e.g., injury status changes, forecast shifts).
 3. **Why:** top feature contributions for the latest prediction.
@@ -233,3 +236,16 @@ Stack: polars (nflreadpy's native format), scikit-learn, lightgbm, httpx for Ope
 
 - **Phase 2:** player-value ratings (snap share × per-play contribution by position) replacing the simple availability count; clinch/elimination status for Weeks 15–18.
 - **Phase 3:** team-score model (points for each team), yielding totals and score distributions where weather should matter more.
+
+## Revisions after data verification (2026-10-06)
+
+Checked against `nflreadpy 0.1.5`, Open-Meteo, and a full real-data dry run before planning:
+
+1. **Margin → probability:** Gaussian added as a tuned candidate alongside the empirical distribution (it scored better in the dry run). The empirical method uses all inner out-of-fold seasons, not 5.
+2. **Depth charts dropped:** nflverse changed the depth-chart format in 2025. Starters come from snap shares; expected QB from the schedule.
+3. **Snap counts start in 2013**, so availability is unknown for 2009–2012 (flagged, not dropped).
+4. **Weather:** 4-hour game window plus climatology fallback; archive fetched in paced two-week windows (Open-Meteo rate limits), 2009+ only.
+5. **Caching/Pages:** compact caches committed instead of `actions/cache`; site deployed as a Pages artifact from `public/`.
+6. **Dry-run results (2012–2023 walk-forward, partial weather):** model 0.629 log-loss, Elo 0.633, home-always 0.686, Vegas 0.613.
+
+Implementation plans: `docs/superpowers/plans/2026-10-06-plan-{1,2,3}-*.md`.
