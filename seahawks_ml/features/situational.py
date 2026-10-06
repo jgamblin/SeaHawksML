@@ -60,6 +60,8 @@ def compute_situational(games: pl.DataFrame, stadiums: dict[str, Stadium]) -> pl
             row[f"{side}_travel_miles"] = haversine_miles(base.lat, base.lon, venue.lat, venue.lon)
             row[f"{side}_tz_shift"] = venue_offset - _offset_hours(base.tz, ko)
             row[f"{side}_body_clock"] = local.hour + local.minute / 60
+        # nflverse marks Super Bowls neutral even when a participant plays at home
+        # (e.g. 2020 TB at TAM00), so home_field=0 there by design.
         home_field = 0 if g["neutral"] else 1
         et = ko.astimezone(ET)
         rows.append(row | {

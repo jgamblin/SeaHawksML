@@ -24,8 +24,10 @@ class RawData:
         """Drop everything not knowable before `cutoff`.
 
         Results of games kicking off at/after the cutoff are nulled; per-game stats for
-        those games are removed; injury reports are kept only for weeks that have
-        started by cutoff + 1 day (so a game's own final report survives). Weather is
+        those games are removed; injury reports are kept for every (season, week) whose
+        earliest kickoff is before cutoff + 1 day, so a game's own final report survives.
+        That can include other teams' later reports for the same week; per-game features
+        only read their own game's week, so this does not leak into the target game. Weather is
         left alone because a forecast stands in for it at prediction time.
         """
         later = pl.col("kickoff_utc") >= cutoff

@@ -51,6 +51,7 @@ def test_climatology_ignores_weather_after_the_game():
         pl.lit(g["stadium_id"]).alias("stadium_id"), pl.lit(future).alias("time_utc"),
         pl.lit(200.0).alias("temp_f"), pl.lit("archive").alias("source"),
     )
-    out = compute_weather(raw.games, pl.concat([weather, extreme])).filter(pl.col("game_id") == g["game_id"]).row(0, named=True)
+    result = compute_weather(raw.games, pl.concat([weather, extreme]))
+    out = result.filter(pl.col("game_id") == g["game_id"]).row(0, named=True)
     assert out["weather_source"] == "climatology"
     assert out["temp_f"] == pytest.approx(base["temp_f"])
