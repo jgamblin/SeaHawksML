@@ -34,8 +34,38 @@ def season_outlook(sim_log: list[dict]) -> dict | None:
             "series": [{"date": r["as_of"][:10], "p_playoffs": r["p_playoffs"]} for r in snaps]}
 
 
+def seahawks_schedule(games, now: datetime, team: str = "SEA") -> list[dict]:
+    """The team's current-season games (from a prepared games frame) as plain dicts for the season log."""
+    from seahawks_ml.data import current_season
+    from seahawks_ml.pipeline.gate import team_schedule
+
+    season = current_season(games, now)
+    out = []
+    for g in team_schedule(games.filter(games["season"] == season), team).iter_rows(named=True):
+        home = g["home_team"] == team and not g["neutral"]
+        us, them = (g["home_score"], g["away_score"]) if g["home_team"] == team else (g["away_score"], g["home_score"])
+        out.append({"game_id": g["game_id"], "kickoff_utc": g["kickoff_utc"].isoformat(),
+                    "opponent": g["away_team"] if g["home_team"] == team else g["home_team"],
+                    "seahawks_home": home, "seahawks_score": us, "opponent_score": them})
+    return out
+
+
+def _unpredicted_games(schedule: list[dict], predicted: set[str], now: datetime) -> list[dict]:
+    out = []
+    for s in schedule:
+        if s["game_id"] in predicted:
+            continue
+        scored = s.get("seahawks_score") is not None and s.get("opponent_score") is not None
+        result = {"seahawks_score": s["seahawks_score"], "opponent_score": s["opponent_score"],
+                  "margin_seahawks": s["seahawks_score"] - s["opponent_score"]} if scored else None
+        out.append({"game_id": s["game_id"], "opponent": s["opponent"], "kickoff_utc": s["kickoff_utc"],
+                    "seahawks_home": s["seahawks_home"], "trajectory": [], "changes": [], "latest": None,
+                    "result": result, "status": "not_predicted" if _ts(s["kickoff_utc"]) <= now else "scheduled"})
+    return out
+
+
 def build_site_data(history: list[dict], now: datetime, league_log: list[dict] | None = None,
-                    sim_log: list[dict] | None = None) -> dict:
+                    sim_log: list[dict] | None = None, schedule: list[dict] | None = None) -> dict:
     predictions = [r for r in history if r["type"] == "prediction"]
     results = {r["game_id"]: r for r in history if r["type"] == "result"}
     games: dict[str, dict] = {}
@@ -52,6 +82,7 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
         g["result"] = results.get(p["game_id"])
     for g in games.values():
         g["changes"] = trajectory_changes(g.pop("_runs"))
+        g["status"] = "predicted"
     upcoming = [g for g in games.values() if g["result"] is None and _ts(g["kickoff_utc"]) > now]
     next_game = min(upcoming, key=lambda g: g["kickoff_utc"]) if upcoming else None
     for p in [next_game["latest"]] if next_game else []:
@@ -69,7 +100,8 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
     return {
         "generated_at": now.isoformat(),
         "next_game": next_game,
-        "season_log": sorted(games.values(), key=lambda g: g["kickoff_utc"]),
+        "season_log": sorted([*games.values(), *_unpredicted_games(schedule or [], set(games), now)],
+                             key=lambda g: g["kickoff_utc"]),
         "record": record,
         "metrics": _read_json(METRICS_PATH),
         "backtest": backtest,
@@ -80,11 +112,13 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
 
 
 def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PATH,
-               out_dir: Path = SITE_DIR, league_path: Path | None = None, sim_path: Path | None = None) -> Path:
+               out_dir: Path = SITE_DIR, league_path: Path | None = None, sim_path: Path | None = None,
+               schedule: list[dict] | None = None) -> Path:
     now = now or datetime.now(UTC)
     league_path = LEAGUE_PATH if league_path is None else league_path  # looked up at call time
     sim_path = SEASON_SIM_PATH if sim_path is None else sim_path
-    data = build_site_data(read_history(history_path), now, read_history(league_path), read_history(sim_path))
+    data = build_site_data(read_history(history_path), now, read_history(league_path), read_history(sim_path),
+                           schedule)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))

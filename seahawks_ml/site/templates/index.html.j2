@@ -463,15 +463,16 @@
       <thead><tr><th>Kickoff</th><th>Matchup</th><th>Runs (win %)</th><th class="r">Final pick</th><th>Result</th><th>Call</th></tr></thead>
       <tbody>
       {% for game in data.season_log %}
-        {% set lp = game.latest.p_seahawks %}
+        {% set predicted = game.latest is not none %}
+        {% set lp = game.latest.p_seahawks if predicted else none %}
         {% set res = game.result %}
         <tr>
           <td><span data-utc="{{ game.kickoff_utc }}" data-fmt="date">{{ game.kickoff_utc[:10] }}</span></td>
           <td class="opp"><small>{{ "vs" if game.seahawks_home else "at" }}</small>{{ game.opponent }}</td>
-          <td><span class="traj">{% for t in game.trajectory %}<span class="{{ 'pos' if t.p_seahawks > 0.5 else '' }}">{{ "%.0f"|format(t.p_seahawks * 100) }}</span>{% if not loop.last %}<em>›</em>{% endif %}{% endfor %}</span></td>
-          <td class="r"><span class="pick {{ 'pos' if lp > 0.5 else 'neg' }}">{{ "%.0f"|format(lp * 100) }}%</span></td>
-          <td>{% if res %}{% set wl = "W" if res.margin_seahawks > 0 else ("L" if res.margin_seahawks < 0 else "T") %}<span class="wl {{ wl }}">{{ wl }}</span><span class="num">{{ res.seahawks_score }}–{{ res.opponent_score }}</span>{% else %}<span class="wl up">·</span><span class="muted">Upcoming</span>{% endif %}</td>
-          <td>{% if res and res.margin_seahawks != 0 %}{% if (lp > 0.5) == (res.margin_seahawks > 0) %}<span class="mark hit">Correct</span>{% else %}<span class="mark miss">Missed</span>{% endif %}{% elif res %}<span class="mark na">Tie</span>{% else %}<span class="mark na">Pending</span>{% endif %}</td>
+          <td>{% if predicted %}<span class="traj">{% for t in game.trajectory %}<span class="{{ 'pos' if t.p_seahawks > 0.5 else '' }}">{{ "%.0f"|format(t.p_seahawks * 100) }}</span>{% if not loop.last %}<em>›</em>{% endif %}{% endfor %}</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+          <td class="r">{% if predicted %}<span class="pick {{ 'pos' if lp > 0.5 else 'neg' }}">{{ "%.0f"|format(lp * 100) }}%</span>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+          <td>{% if res %}{% set wl = "W" if res.margin_seahawks > 0 else ("L" if res.margin_seahawks < 0 else "T") %}<span class="wl {{ wl }}">{{ wl }}</span><span class="num">{{ res.seahawks_score }}–{{ res.opponent_score }}</span>{% elif predicted %}<span class="wl up">·</span><span class="muted">Upcoming</span>{% else %}<span class="wl up">·</span><span class="muted">{{ "Scheduled" if game.status == "scheduled" else "Awaiting result" }}</span>{% endif %}</td>
+          <td>{% if not predicted %}<span class="mark na">{{ "Scheduled" if game.status == "scheduled" else "Not predicted" }}</span>{% elif res and res.margin_seahawks != 0 %}{% if (lp > 0.5) == (res.margin_seahawks > 0) %}<span class="mark hit">Correct</span>{% else %}<span class="mark miss">Missed</span>{% endif %}{% elif res %}<span class="mark na">Tie</span>{% else %}<span class="mark na">Pending</span>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

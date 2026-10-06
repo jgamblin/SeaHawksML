@@ -379,3 +379,20 @@ def test_holdout_refuses_overwrite_without_force(monkeypatch, tmp_path):
     path, _ = _holdout_env(monkeypatch, tmp_path, existing={"config": {}})
     with pytest.raises(SystemExit):
         cli.cmd_holdout(Namespace(force=False, now=None))
+
+
+def test_build_site_falls_back_when_schedule_download_fails(monkeypatch, tmp_path, capsys):
+    from types import SimpleNamespace
+
+    from seahawks_ml.ingest import nflverse
+    from seahawks_ml.site import build
+
+    def boom():
+        raise OSError("offline")
+
+    seen = {}
+    monkeypatch.setattr(nflverse, "load_schedules", boom)
+    monkeypatch.setattr(build, "build_site", lambda now, schedule=None: seen.update(schedule=schedule) or tmp_path)
+    cli.cmd_build_site(SimpleNamespace(now="2026-10-10T00:00:00"))
+    assert seen["schedule"] is None
+    assert "warning: schedule unavailable" in capsys.readouterr().out

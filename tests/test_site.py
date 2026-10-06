@@ -261,3 +261,54 @@ def test_holdout_tile_not_flagged_on_first_run(tmp_path, monkeypatch):
     html = _site_with_holdout(tmp_path, monkeypatch, {"previously_viewed": False})
     assert "Seen before" not in html
     assert "Locked holdout" in html
+
+
+def _schedule():
+    def g(gid, kick, opp, home, us=None, them=None):
+        return {"game_id": gid, "kickoff_utc": kick, "opponent": opp, "seahawks_home": home,
+                "seahawks_score": us, "opponent_score": them}
+    return [g("g0", "2026-09-27T20:25:00+00:00", "LA", False, 10, 13),   # past, unpredicted, loss
+            g("g1", "2026-10-04T20:25:00+00:00", "SF", True, 24, 17),    # predicted
+            g("g2", "2026-10-11T20:25:00+00:00", "SF", True),            # predicted, future
+            g("g3", "2026-10-18T20:25:00+00:00", "ARI", False),          # future, unpredicted
+            g("g4", "2026-10-25T13:30:00+00:00", "WAS", False)]          # neutral site => not home
+
+
+def test_season_log_includes_unpredicted_games(tmp_path):
+    from seahawks_ml.pipeline.history import read_history
+    now = datetime(2026, 10, 10, 19, tzinfo=UTC)
+    data = build_site_data(read_history(_history(tmp_path)), now, schedule=_schedule())
+    log = data["season_log"]
+    assert [g["game_id"] for g in log] == ["g0", "g1", "g2", "g3", "g4"]
+    assert [g["status"] for g in log] == ["not_predicted", "predicted", "predicted", "scheduled", "scheduled"]
+    assert log[0]["result"] == {"seahawks_score": 10, "opponent_score": 13, "margin_seahawks": -3}
+    assert log[0]["trajectory"] == [] and log[3]["result"] is None
+    assert data["record"] == {"games": 1, "correct": 1}  # unpredicted games never count
+    assert data["next_game"]["game_id"] == "g2"
+
+
+def test_build_site_renders_unpredicted_markers(tmp_path):
+    out = build_site(datetime(2026, 10, 10, 19, tzinfo=UTC), history_path=_history(tmp_path),
+                     out_dir=tmp_path / "site", schedule=_schedule())
+    html = out.read_text()
+    assert "Not predicted" in html and "Scheduled" in html and "ARI" in html
+
+
+def test_seahawks_schedule_from_games_frame():
+    import polars as pl
+
+    from seahawks_ml.site.build import seahawks_schedule
+    rows = [("a", "2026-09-27", "SEA", "LA", 10, 13, False), ("b", "2026-10-04", "SF", "SEA", 17, 24, False),
+            ("c", "2026-10-11", "SEA", "WAS", None, None, True), ("d", "2026-10-11", "KC", "DEN", 1, 2, False),
+            ("e", "2025-12-28", "SEA", "SF", 3, 1, False)]
+    seasons = [2026, 2026, 2026, 2026, 2025]
+    games = pl.DataFrame({"game_id": [r[0] for r in rows], "season": seasons,
+                          "kickoff_utc": [datetime.fromisoformat(r[1]).replace(tzinfo=UTC) for r in rows],
+                          "home_team": [r[2] for r in rows], "away_team": [r[3] for r in rows],
+                          "home_score": [r[4] for r in rows], "away_score": [r[5] for r in rows],
+                          "neutral": [r[6] for r in rows]})
+    sched = seahawks_schedule(games, datetime(2026, 10, 5, tzinfo=UTC))
+    assert [s["game_id"] for s in sched] == ["a", "b", "c"]
+    assert sched[0]["seahawks_home"] is True and sched[0]["seahawks_score"] == 10
+    assert sched[1]["seahawks_home"] is False and sched[1]["seahawks_score"] == 24 and sched[1]["opponent"] == "SF"
+    assert sched[2]["seahawks_home"] is False and sched[2]["seahawks_score"] is None

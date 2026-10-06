@@ -372,9 +372,19 @@ def cmd_simulate(args) -> None:
 
 
 def cmd_build_site(args) -> None:
-    from seahawks_ml.site.build import build_site
+    from seahawks_ml.site.build import build_site, seahawks_schedule
 
-    print(f"site written to {build_site(_now(args))}")
+    now = _now(args)
+    schedule = None
+    try:
+        from seahawks_ml.features.base import prepare_games
+        from seahawks_ml.ingest import nflverse
+        from seahawks_ml.stadiums import load_stadiums
+
+        schedule = seahawks_schedule(prepare_games(nflverse.load_schedules(), load_stadiums()), now)
+    except Exception as e:
+        print(f"warning: schedule unavailable ({e!r}); season log shows predicted games only")
+    print(f"site written to {build_site(now, schedule=schedule)}")
 
 
 def main(argv: list[str] | None = None) -> None:
