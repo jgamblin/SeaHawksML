@@ -9,7 +9,7 @@ from seahawks_ml.features.coaching import new_head_coach
 from seahawks_ml.features.columns import FEATURE_COLUMNS, ID_COLUMNS
 from seahawks_ml.features.elo import compute_elo
 from seahawks_ml.features.qb import QBParams, compute_qb_features
-from seahawks_ml.features.ratings import RatingParams, compute_team_ratings
+from seahawks_ml.features.ratings import RATING_COLUMNS, RatingParams, compute_team_ratings
 from seahawks_ml.features.season_timing import compute_season_timing
 from seahawks_ml.features.situational import compute_situational
 from seahawks_ml.features.weather import compute_weather
@@ -42,7 +42,7 @@ def build_features(
         games.select("game_id", "season", "week", "game_type", "kickoff_utc", "home_team",
                      "away_team", "neutral", "margin", "spread_line")
         .join(compute_elo(games), on="game_id")
-        .join(_home_away(games, ratings, ["off_rating", "def_rating"]), on="game_id")
+        .join(_home_away(games, ratings, RATING_COLUMNS), on="game_id")
         .join(_home_away(games, coach, ["new_head_coach"]), on="game_id")
         .join(compute_qb_features(games, raw.qb_games, raw.players, qb_params), on="game_id")
         .join(compute_situational(games, stadiums), on="game_id")
@@ -55,6 +55,8 @@ def build_features(
         (pl.col("elo_home_pre") - pl.col("elo_away_pre")).alias("elo_diff"),
         (pl.col("home_off_rating") - pl.col("away_off_rating")).alias("off_rating_diff"),
         (pl.col("home_def_rating") - pl.col("away_def_rating")).alias("def_rating_diff"),
+        *[(pl.col(f"home_{p}_{s}_rating") - pl.col(f"away_{p}_{s}_rating")).alias(f"{p}_{s}_diff")
+          for p in ("pass", "rush", "success") for s in ("off", "def")],
         (pl.col("home_qb_epa") - pl.col("away_qb_epa")).alias("qb_epa_diff"),
         (pl.col("home_qb_cpoe") - pl.col("away_qb_cpoe")).alias("qb_cpoe_diff"),
         *[(pl.col(f"{s}_qb_bucket") == b).cast(pl.Int64).alias(f"{s}_qb_{b}")
