@@ -18,7 +18,16 @@ RESULT_KEYS = {"type", "game_id", "recorded_at", "seahawks_score", "opponent_sco
 def read_history(path: Path = PREDICTIONS_PATH) -> list[dict]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    lines = [line for line in path.read_text().splitlines() if line.strip()]
+    records = []
+    for i, line in enumerate(lines):
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            if i != len(lines) - 1:
+                raise
+            print(f"warning: skipping truncated last line of {path}")
+    return records
 
 
 def validate(record: dict) -> None:

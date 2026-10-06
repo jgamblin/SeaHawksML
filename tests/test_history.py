@@ -60,3 +60,22 @@ def test_scored_predictions_compares_instants_not_strings():
     after = _pred("g1", "gameday", "2026-10-11T13:00:00-07:00", kickoff)  # 20:00Z, post-kickoff
     scored = scored_predictions([early, late, after, _result("g1", 3)])
     assert len(scored) == 1 and scored[0]["prediction"] is late
+
+
+def test_read_history_skips_truncated_last_line(tmp_path, capsys):
+    path = tmp_path / "h.jsonl"
+    append_record(_pred("g1", "midweek", "2026-10-07T12:00:00+00:00"), path)
+    with path.open("a") as f:
+        f.write('{"type": "predic')
+    assert len(read_history(path)) == 1
+    assert "warning" in capsys.readouterr().out
+
+
+def test_read_history_bad_middle_line_raises(tmp_path):
+    path = tmp_path / "h.jsonl"
+    append_record(_pred("g1", "midweek", "2026-10-07T12:00:00+00:00"), path)
+    with path.open("a") as f:
+        f.write("not json\n")
+    append_record(_pred("g1", "gameday", "2026-10-11T17:00:00+00:00"), path)
+    with pytest.raises(ValueError):
+        read_history(path)
