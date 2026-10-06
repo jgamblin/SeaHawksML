@@ -19,6 +19,7 @@ class RawData:
     snaps: pl.DataFrame  # ingest.nflverse.SNAPS_SCHEMA
     players: pl.DataFrame  # ingest.nflverse.PLAYERS_SCHEMA
     weather: pl.DataFrame  # ingest.weather.WEATHER_SCHEMA
+    player_stats: pl.DataFrame  # ingest.nflverse.PLAYER_STATS_SCHEMA
 
     def as_of(self, cutoff: datetime) -> "RawData":
         """Drop everything not knowable before `cutoff`.
@@ -44,6 +45,7 @@ class RawData:
             team_epa=self.team_epa.filter(pl.col("game_id").is_in(list(played))),
             qb_games=self.qb_games.filter(pl.col("game_id").is_in(list(played))),
             snaps=self.snaps.filter(pl.col("game_id").is_in(list(played))),
+            player_stats=self.player_stats.filter(pl.col("game_id").is_in(list(played))),
             injuries=self.injuries.join(open_weeks, on=["season", "week"], how="semi"),
         )
 
@@ -79,4 +81,5 @@ def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | 
         snaps=tables["snaps"],
         players=nflverse.load_players(),
         weather=weather.update_archive_cache(games, stadiums, now),
+        player_stats=tables["player_stats"],
     )

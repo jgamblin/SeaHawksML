@@ -1,7 +1,9 @@
 """Small, fully synthetic RawData for fast offline tests.
 
 Four NFC West teams play a 6-week double round robin each season. Team strength,
-EPA, QB stats, snaps, injuries and weather are random but internally consistent.
+EPA, QB stats, snaps, injuries, player stats and weather are random but internally consistent.
+
+Each team has 10 non-QB players: P0-P3 WR, P4 RB (offense) and P5-P9 LB (defense).
 """
 
 import random
@@ -13,6 +15,7 @@ from seahawks_ml.data import RawData
 from seahawks_ml.features.base import GAMES_SCHEMA
 from seahawks_ml.ingest.nflverse import (
     INJURIES_SCHEMA,
+    PLAYER_STATS_SCHEMA,
     PLAYERS_SCHEMA,
     QB_GAMES_SCHEMA,
     SNAPS_SCHEMA,
@@ -21,6 +24,11 @@ from seahawks_ml.ingest.nflverse import (
 from seahawks_ml.ingest.weather import GAME_WINDOW_HOURS, WEATHER_SCHEMA
 
 TEAMS = ["SEA", "SF", "LA", "ARI"]
+DEF_DRAFT_ROUND = {5: 1, 6: 2, 7: 5, 8: None, 9: 3}
+
+
+def _position(i: int) -> str:
+    return "WR" if i < 4 else "RB" if i == 4 else "LB"
 HOME_STADIUM = {"SEA": "SEA00", "SF": "SFO01", "LA": "LAX01", "ARI": "PHO00"}
 ROOF = {"SEA00": "outdoors", "SFO01": "outdoors", "LAX01": "dome", "PHO00": "closed"}
 ROUNDS = [[("SEA", "SF"), ("LA", "ARI")], [("SEA", "LA"), ("SF", "ARI")], [("SEA", "ARI"), ("SF", "LA")]]
@@ -34,17 +42,19 @@ def _coach(team: str, season: int, seasons) -> str:
 def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week: bool = False) -> RawData:
     rng = random.Random(seed)
     split_rng = random.Random(seed + 10_000)  # pass/rush/success split; keeps `rng` draws unchanged
+    stat_rng = random.Random(seed + 20_000)  # player stats; keeps `rng` draws unchanged
     strength = {t: rng.gauss(0, 4) for t in TEAMS}
     games, team_epa, qb_games, snaps, injuries, weather = [], [], [], [], [], []
-    players = []
+    players, player_stats = [], []
     for t in TEAMS:
         players.append({"gsis_id": f"{t}-QB1", "pfr_id": f"{t}QB100", "position": "QB",
                         "draft_round": {"SEA": 3, "SF": 1, "LA": 1, "ARI": None}[t], "rookie_season": 2008})
         players.append({"gsis_id": f"{t}-QB2", "pfr_id": f"{t}QB200", "position": "QB",
                         "draft_round": 6, "rookie_season": 2012})
         for i in range(10):
-            players.append({"gsis_id": f"{t}-P{i}", "pfr_id": f"{t}P{i:03d}", "position": "WR" if i < 5 else "LB",
-                            "draft_round": 2, "rookie_season": 2010})
+            players.append({"gsis_id": f"{t}-P{i}", "pfr_id": f"{t}P{i:03d}", "position": _position(i),
+                            "draft_round": DEF_DRAFT_ROUND.get(i, 2), "rookie_season": 2010})
+    skill = {(t, i): stat_rng.gauss(0, 0.2) for t in TEAMS for i in range(5)}  # true EPA/opportunity
     last_season = max(seasons)
     for season in seasons:
         for week in range(1, 7):
@@ -89,9 +99,19 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
                         for i in range(10):
                             snaps.append({"game_id": game_id, "season": season, "week": week,
                                           "team": team, "pfr_player_id": f"{team}P{i:03d}",
-                                          "position": "WR" if i < 5 else "LB",
+                                          "position": _position(i),
                                           "offense_pct": 0.9 if i < 5 else 0.0,
                                           "defense_pct": 0.0 if i < 5 else 0.9})
+                    if season >= 2012:
+                        for i in range(5):
+                            opps = stat_rng.randint(2, 10) if i < 4 else stat_rng.randint(8, 20)
+                            epa = sum(stat_rng.gauss(skill[(team, i)], 1.0) for _ in range(opps))
+                            rush = i == 4
+                            player_stats.append({
+                                "player_id": f"{team}-P{i}", "game_id": game_id, "season": season,
+                                "week": week, "team": team, "position_group": "RB" if rush else "WR",
+                                "targets": 0 if rush else opps, "receiving_epa": None if rush else epa,
+                                "carries": opps if rush else 0, "rushing_epa": epa if rush else None})
                 if ROOF[stadium] == "outdoors":
                     for h in range(GAME_WINDOW_HOURS):
                         weather.append({"stadium_id": stadium, "time_utc": kickoff + timedelta(hours=h),
@@ -110,6 +130,7 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
         snaps=pl.DataFrame(snaps, schema=SNAPS_SCHEMA),
         players=pl.DataFrame(players, schema=PLAYERS_SCHEMA),
         weather=pl.DataFrame(weather, schema=WEATHER_SCHEMA).unique(["stadium_id", "time_utc"]),
+        player_stats=pl.DataFrame(player_stats, schema=PLAYER_STATS_SCHEMA),
     )
 
 
