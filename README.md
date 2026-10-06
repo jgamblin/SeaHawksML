@@ -44,6 +44,8 @@ League-wide scorecard: in the same job, every NFL game gets one prediction logge
 about a day before kickoff (`predictions/league.jsonl`, append-only, with the Vegas and
 Elo probabilities alongside) and its result once final. The dashboard's "Live this
 season" card scores model vs Vegas vs Elo on those fresh, never-edited predictions.
+The live Vegas benchmark uses the spread nflverse has about 6-24 hours before kickoff, which
+is not necessarily the closing line.
 
 Manual run: `uv run python -m seahawks_ml.cli predict --run-type midweek`
 
