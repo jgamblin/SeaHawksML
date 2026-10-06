@@ -399,7 +399,7 @@ def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
     assert len(flat) == 1 and flat[0].mode == "values_pooled"
     assert set(dict(flat[0].lineman_quality).values()) == {1.0}
     trials = [t for t in written["feature_trials"] if t["stage"] == "availability"]
-    assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values"}
+    assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values", "count_diff", "values_pooled"}
     assert any(t["availability"] == winner.to_dict() and t["log_loss"] == 0.5 for t in trials)
     assert f"best availability: {winner}" in capsys.readouterr().out
 
