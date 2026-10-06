@@ -1,0 +1,61 @@
+stadium_id,name,lat,lon,tz,roof_default
+ATL00,Georgia Dome,33.758,-84.401,America/New_York,dome
+ATL97,Mercedes-Benz Stadium,33.755,-84.401,America/New_York,retractable
+BAL00,M&T Bank Stadium,39.278,-76.623,America/New_York,outdoors
+BOS00,Gillette Stadium,42.091,-71.264,America/New_York,outdoors
+BRG00,Tiger Stadium (LSU),30.412,-91.184,America/Chicago,outdoors
+BUF00,Highmark Stadium,42.774,-78.787,America/New_York,outdoors
+BUF01,Rogers Centre,43.641,-79.389,America/Toronto,dome
+CAR00,Bank of America Stadium,35.226,-80.853,America/New_York,outdoors
+CHI98,Soldier Field,41.862,-87.617,America/Chicago,outdoors
+CHI99,Memorial Stadium (Champaign),40.099,-88.236,America/Chicago,outdoors
+CIN00,Paycor Stadium,39.095,-84.516,America/New_York,outdoors
+CLE00,Huntington Bank Field,41.506,-81.700,America/New_York,outdoors
+DAL00,AT&T Stadium,32.748,-97.093,America/Chicago,retractable
+DAL99,Texas Stadium,32.840,-96.911,America/Chicago,outdoors
+DEN00,Empower Field at Mile High,39.744,-105.020,America/Denver,outdoors
+DET00,Ford Field,42.340,-83.046,America/Detroit,dome
+FRA00,Deutsche Bank Park,50.069,8.645,Europe/Berlin,outdoors
+GER00,Allianz Arena,48.219,11.625,Europe/Berlin,outdoors
+GNB00,Lambeau Field,44.501,-88.062,America/Chicago,outdoors
+HOU00,NRG Stadium,29.685,-95.411,America/Chicago,retractable
+IND00,Lucas Oil Stadium,39.760,-86.164,America/Indiana/Indianapolis,retractable
+IND99,RCA Dome,39.764,-86.163,America/Indiana/Indianapolis,dome
+JAX00,EverBank Stadium,30.324,-81.637,America/New_York,outdoors
+KAN00,GEHA Field at Arrowhead Stadium,39.049,-94.484,America/Chicago,outdoors
+LAX01,SoFi Stadium,33.953,-118.339,America/Los_Angeles,dome
+LAX97,Dignity Health Sports Park,33.864,-118.261,America/Los_Angeles,outdoors
+LAX99,Los Angeles Memorial Coliseum,34.014,-118.288,America/Los_Angeles,outdoors
+LON00,Wembley Stadium,51.556,-0.280,Europe/London,outdoors
+LON01,Twickenham Stadium,51.456,-0.342,Europe/London,outdoors
+LON02,Tottenham Hotspur Stadium,51.604,-0.066,Europe/London,outdoors
+MAD01,Santiago Bernabeu,40.453,-3.688,Europe/Madrid,retractable
+MEL00,Melbourne Cricket Ground,-37.820,144.983,Australia/Melbourne,outdoors
+MEX00,Estadio Azteca,19.303,-99.150,America/Mexico_City,outdoors
+MIA00,Hard Rock Stadium,25.958,-80.239,America/New_York,outdoors
+MIN00,Hubert H. Humphrey Metrodome,44.974,-93.258,America/Chicago,dome
+MIN01,U.S. Bank Stadium,44.974,-93.258,America/Chicago,dome
+MIN98,Huntington Bank Stadium (TCF Bank),44.976,-93.225,America/Chicago,outdoors
+MUN01,Allianz Arena,48.219,11.625,Europe/Berlin,outdoors
+NAS00,Nissan Stadium,36.166,-86.771,America/Chicago,outdoors
+NOR00,Caesars Superdome,29.951,-90.081,America/Chicago,dome
+NYC00,Giants Stadium,40.812,-74.077,America/New_York,outdoors
+NYC01,MetLife Stadium,40.814,-74.074,America/New_York,outdoors
+OAK00,Oakland Coliseum,37.751,-122.201,America/Los_Angeles,outdoors
+PAR00,Stade de France,48.924,2.360,Europe/Paris,outdoors
+PHI00,Lincoln Financial Field,39.901,-75.168,America/New_York,outdoors
+PHI99,Veterans Stadium,39.907,-75.171,America/New_York,outdoors
+PHO00,State Farm Stadium,33.528,-112.263,America/Phoenix,retractable
+PHO99,Sun Devil Stadium,33.426,-111.933,America/Phoenix,outdoors
+PIT00,Acrisure Stadium,40.447,-80.016,America/New_York,outdoors
+RIO00,Maracana Stadium,-22.912,-43.230,America/Sao_Paulo,outdoors
+SAN00,Alamodome,29.417,-98.479,America/Chicago,dome
+SAO00,Arena Corinthians,-23.545,-46.474,America/Sao_Paulo,outdoors
+SDG00,Qualcomm Stadium,32.783,-117.120,America/Los_Angeles,outdoors
+SEA00,Lumen Field,47.595,-122.332,America/Los_Angeles,outdoors
+SFO00,Candlestick Park,37.714,-122.386,America/Los_Angeles,outdoors
+SFO01,Levi's Stadium,37.403,-121.970,America/Los_Angeles,outdoors
+STL00,Edward Jones Dome,38.633,-90.188,America/Chicago,dome
+TAM00,Raymond James Stadium,27.976,-82.503,America/New_York,outdoors
+VEG00,Allegiant Stadium,36.091,-115.184,America/Los_Angeles,dome
+WAS00,Northwest Stadium,38.908,-76.865,America/New_York,outdoors
