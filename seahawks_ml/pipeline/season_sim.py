@@ -203,7 +203,11 @@ FINAL_SNAPSHOT_GRACE = timedelta(days=3)  # keep simulating briefly so final res
 
 def season_in_progress(games: pl.DataFrame, now: datetime) -> bool:
     """True from the week before the current season's opener until a few days after its last
-    regular-season game."""
+    regular-season game.
+
+    Note: the CI cron only runs September through February, so the week-before-opener branch only
+    matters for manual runs.
+    """
     if not games.height:
         return False
     season = current_season(games, now)
