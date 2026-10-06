@@ -189,6 +189,22 @@ def test_league_games_without_feature_row_are_reported(predict_env, monkeypatch,
     assert "2014_06_SF_LA" not in {r["game_id"] for r in read_history(env.league)}
 
 
+def test_league_games_wait_for_previous_game_data(predict_env, monkeypatch, capsys):
+    from seahawks_ml.pipeline.history import read_history
+    env = predict_env
+    prev = env.raw.games.filter((pl.col("season") == 2014) & (pl.col("week") == 5)
+                                & ((pl.col("home_team") == "ARI") | (pl.col("away_team") == "ARI")))["game_id"][0]
+    team_epa = env.raw.team_epa.filter(~((pl.col("game_id") == prev) & (pl.col("team") == "ARI")))
+    monkeypatch.setattr(cli, "_load", lambda now, games=None: (
+        __import__("seahawks_ml.stadiums", fromlist=["x"]).load_stadiums(), replace(env.raw, team_epa=team_epa)))
+    cli._predict(_args(env.kick - timedelta(hours=12)), [])
+    out = capsys.readouterr().out
+    held = set(env.week6.filter((pl.col("home_team") == "ARI") | (pl.col("away_team") == "ARI"))["game_id"].to_list())
+    logged = {r["game_id"] for r in read_history(env.league)}
+    assert held and not (logged & held) and logged
+    assert "retry next hour" in out and sorted(held)[0] in out
+
+
 def test_predict_league_only_when_seahawks_already_run(predict_env):
     from seahawks_ml.pipeline.history import read_history
     env, changed = predict_env, []

@@ -315,6 +315,14 @@ def _predict(args, changed: list[bool]) -> None:
         sim_due = False  # data (EPA/results) is still catching up; the sim retries next hour with the rest
         if not league_ids:
             return
+    if league_ids:
+        due = raw.games.filter(pl.col("game_id").is_in(league_ids))
+        waiting = sorted(
+            r["game_id"] for r in due.iter_rows(named=True)
+            if not all(previous_game_ready(raw.games, raw.team_epa, t, now) for t in (r["home_team"], r["away_team"])))
+        if waiting:
+            print(f"previous game data not in yet for league games {waiting}; skipping (retry next hour)")
+            league_ids = [g for g in league_ids if g not in waiting]
     target_ids = list(league_ids) + ([game["game_id"]] if run_type else [])
     targets = raw.games.filter(pl.col("game_id").is_in(target_ids) & (pl.col("kickoff_utc") - now <= FORECAST_HORIZON))
     if targets.height:
