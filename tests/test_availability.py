@@ -214,6 +214,25 @@ def test_values_skill_quality_is_measured_against_replacement_not_the_mean():
     assert row["home_out_wrte"] == pytest.approx(0.9 * quality)
 
 
+def test_values_skill_history_reads_only_wr_te_rb_rows_with_opportunities():
+    """Rows tagged with another position group (e.g. a game logged as QB) or with no targets or
+    carries are dropped before the history is built, so they cannot move a player's value."""
+    raw = make_raw()
+    game = _week5_game(raw)
+    target = f"{game['home_team']}-P0"
+    extra = raw.player_stats.filter(pl.col("player_id") == target, pl.col("season") == 2013).with_columns(
+        pl.lit("QB").alias("position_group"), pl.lit(0, dtype=pl.Int64).alias("targets"),
+        pl.lit(40, dtype=pl.Int64).alias("carries"),
+        pl.lit(None, dtype=pl.Float64).alias("receiving_epa"), pl.lit(-30.0).alias("rushing_epa"))
+    empty = raw.player_stats.filter(pl.col("player_id") == target, pl.col("season") == 2013).with_columns(
+        pl.lit(0, dtype=pl.Int64).alias("targets"), pl.lit(0, dtype=pl.Int64).alias("carries"),
+        pl.lit(-30.0).alias("receiving_epa"))
+    inj = _home_injuries(game, {0: "Out"})
+    params = AvailabilityParams(mode="values")
+    assert _row(raw, inj, params) == _row(raw, inj, params,
+                                          player_stats=pl.concat([raw.player_stats, extra, empty]))
+
+
 def test_values_quality_is_floored_at_zero():
     raw = make_raw()
     game = _week5_game(raw)

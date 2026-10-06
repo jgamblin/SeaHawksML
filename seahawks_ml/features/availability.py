@@ -53,6 +53,7 @@ POSITION_GROUPS = {
     **dict.fromkeys(("CB", "S", "SS", "FS", "DB", "SAF"), "db"),
 }
 SKILL_STAT_GROUPS = {"wrte": frozenset({"WR", "TE"}), "rb": frozenset({"RB"})}
+SKILL_STAT_POSITIONS = frozenset().union(*SKILL_STAT_GROUPS.values())
 SKILL_WINDOW_SEASONS = 2  # the game's season so far plus the previous season
 REPLACEMENT_FALLBACK = 0.0  # EPA/opportunity when no earlier season has stats
 REPLACEMENT_PERCENTILE = 25.0  # replacement level: this percentile of earlier player-seasons
@@ -120,7 +121,8 @@ class _SkillHistory:
     """Per-player receiving/rushing history indexed for leak-free lookups by kickoff.
 
     Receiving (targets, receiving EPA) and rushing (carries, rushing EPA) are kept apart so a
-    player is measured against baselines in his own opportunity mix.
+    player is measured against baselines in his own opportunity mix. Only WR/TE/RB rows with a
+    target or carry are read.
     """
 
     def __init__(self, player_stats: pl.DataFrame | None, kickoff: dict):
@@ -129,10 +131,14 @@ class _SkillHistory:
         player_seasons: dict[str, dict[int, dict[str, list[float]]]] = {
             g: defaultdict(lambda: defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])) for g in SKILL_STAT_GROUPS}
         if player_stats is not None:
-            for r in player_stats.iter_rows(named=True):
+            # only WR/TE/RB rows with a target or carry matter; most of the table is defenders
+            skill_rows = player_stats.filter(
+                pl.col("position_group").is_in(sorted(SKILL_STAT_POSITIONS))
+                & ((pl.col("targets").fill_null(0) + pl.col("carries").fill_null(0)) > 0))
+            for r in skill_rows.iter_rows(named=True):
                 ko = kickoff.get(r["game_id"])
                 t, c = r["targets"] or 0, r["carries"] or 0
-                if ko is None or t + c <= 0:
+                if ko is None:
                     continue
                 vals = (r["receiving_epa"] or 0.0, t, r["rushing_epa"] or 0.0, c)
                 rows[r["player_id"]].append((ko, r["season"], vals))
