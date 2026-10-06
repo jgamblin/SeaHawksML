@@ -33,6 +33,7 @@ def _coach(team: str, season: int, seasons) -> str:
 
 def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week: bool = False) -> RawData:
     rng = random.Random(seed)
+    split_rng = random.Random(seed + 10_000)  # pass/rush/success split; keeps `rng` draws unchanged
     strength = {t: rng.gauss(0, 4) for t in TEAMS}
     games, team_epa, qb_games, snaps, injuries, weather = [], [], [], [], [], []
     players = []
@@ -74,8 +75,13 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
                     continue
                 for team, opp, qb, sign in ((home, away, home_qb, 1), (away, home, away_qb, -1)):
                     epa = sign * margin / 30 + rng.gauss(0, 3)
+                    pass_share = split_rng.uniform(0.5, 0.8)
                     team_epa.append({"game_id": game_id, "season": season, "team": team,
-                                     "opponent": opp, "epa_sum": epa, "plays": 60})
+                                     "opponent": opp, "epa_sum": epa, "plays": 60,
+                                     "pass_epa_sum": epa * pass_share, "pass_plays": 35,
+                                     "rush_epa_sum": epa * (1 - pass_share), "rush_plays": 25,
+                                     "success_sum": float(min(60, max(0, round(27 + 2 * epa
+                                                                             + split_rng.gauss(0, 3)))))})
                     qb_games.append({"game_id": game_id, "season": season, "team": team, "qb_id": qb,
                                      "dropbacks": 35, "qb_epa_sum": epa * 0.8,
                                      "cpoe_sum": rng.gauss(0, 30), "cpoe_n": 30})

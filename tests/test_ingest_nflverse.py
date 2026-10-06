@@ -17,6 +17,11 @@ def _pbp():
         "qb_epa": [0.5, -0.1, 2.0, 1.0, None, 0.3, 0.9, 0.7],
         "cpoe": [10.0, None, None, None, -5.0, None, None, None],
         "two_point_attempt": [0.0, None, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        # row 6 is a QB scramble: play_type run, but pass == 1
+        "pass": [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0],
+        "rush": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "success": [1.0, 0.0, 1.0, 1.0, None, 1.0, 1.0, 1.0],
+        "fumble": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     })
 
 
@@ -28,6 +33,32 @@ def test_aggregate_team_epa_uses_scrimmage_plays_and_normalizes_teams():
     assert rows["LA"]["opponent"] == "SEA"
     assert rows["SEA"]["plays"] == 2  # null epa and two-point attempt excluded
     assert abs(rows["SEA"]["epa_sum"] - 1.9) < 1e-9
+
+
+def test_aggregate_team_epa_pass_rush_success_split():
+    rows = {r["team"]: r for r in aggregate_team_epa(_pbp()).iter_rows(named=True)}
+    la, sea = rows["LA"], rows["SEA"]
+    assert la["pass_plays"] == 1 and abs(la["pass_epa_sum"] - 0.5) < 1e-9
+    assert la["rush_plays"] == 1 and abs(la["rush_epa_sum"] + 0.1) < 1e-9
+    assert la["success_sum"] == 1.0
+    # SEA: a dropback (1.0) and a scramble (0.9) are both pass plays
+    assert sea["pass_plays"] == 2 and abs(sea["pass_epa_sum"] - 1.9) < 1e-9
+    assert sea["rush_plays"] == 0 and sea["rush_epa_sum"] == 0.0
+    assert sea["success_sum"] == 2.0
+
+
+def test_aggregate_team_epa_neutralizes_fumble_luck():
+    pbp = _pbp().with_columns(
+        pl.Series("fumble", [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]))
+    rows = {r["team"]: r for r in aggregate_team_epa(pbp).iter_rows(named=True)}
+    # scrimmage fumble plays: 0.5, -0.1 (LA) and 1.0 (SEA) -> season fumble mean 0.4667
+    m = (0.5 - 0.1 + 1.0) / 3
+    assert abs(rows["LA"]["epa_sum"] - 2 * m) < 1e-9
+    assert abs(rows["LA"]["pass_epa_sum"] - m) < 1e-9
+    assert abs(rows["LA"]["rush_epa_sum"] - m) < 1e-9
+    assert abs(rows["SEA"]["epa_sum"] - (m + 0.9)) < 1e-9
+    assert abs(rows["SEA"]["pass_epa_sum"] - (m + 0.9)) < 1e-9
+    assert rows["SEA"]["plays"] == 2
 
 
 def test_aggregate_qb_games_sums_dropbacks():
@@ -99,3 +130,24 @@ def test_stale_before_refetches_old_cache_once(monkeypatch, tmp_path):
     assert calls == [2005, 2005]  # refetched
     nv.load_season_tables([2005], 2006, cache_dir=tmp_path, stale_before={2005: cutoff})
     assert calls == [2005, 2005]  # fresh now
+
+
+def test_old_schema_team_epa_cache_is_refetched(monkeypatch, tmp_path):
+    import seahawks_ml.ingest.nflverse as nv
+
+    calls = []
+
+    def load_pbp(season):
+        calls.append(season)
+        return _pbp()
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", load_pbp)
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
+    path = tmp_path / "team_epa_2005.parquet"
+    pl.read_parquet(path).select("game_id", "season", "team", "opponent", "epa_sum", "plays").write_parquet(path)
+    out = nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
+    assert calls == [2005, 2005]
+    assert set(nv.TEAM_EPA_SCHEMA) <= set(pl.read_parquet(path).columns)
+    assert out["team_epa"].columns == list(nv.TEAM_EPA_SCHEMA)
