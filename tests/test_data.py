@@ -34,3 +34,16 @@ def test_load_raw_reuses_supplied_games(monkeypatch):
     monkeypatch.setattr(weather, "update_archive_cache", lambda games, stadiums, now: raw.weather)
     loaded = load_raw(load_stadiums(), raw.games["kickoff_utc"].max(), raw.games)
     assert loaded.games.equals(raw.games)
+
+
+def test_current_season_looks_a_week_ahead():
+    from datetime import UTC, datetime
+
+    import polars as pl
+
+    from seahawks_ml.data import current_season
+
+    games = pl.DataFrame({"season": [2025, 2026],
+                          "kickoff_utc": [datetime(2026, 2, 8, tzinfo=UTC), datetime(2026, 9, 10, tzinfo=UTC)]})
+    assert current_season(games, datetime(2026, 9, 5, tzinfo=UTC)) == 2026
+    assert current_season(games, datetime(2026, 8, 30, tzinfo=UTC)) == 2025

@@ -48,6 +48,11 @@ class RawData:
         )
 
 
+def current_season(games: pl.DataFrame, now: datetime) -> int:
+    """Latest season with a game kicking off by now + 7 days (so an opener's week counts)."""
+    return int(games.filter(pl.col("kickoff_utc") <= now + timedelta(days=7))["season"].max())
+
+
 def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | None = None) -> RawData:
     """Download/refresh all inputs. Completed seasons come from data/cache.
 
@@ -57,7 +62,7 @@ def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | 
 
     if games is None:
         games = prepare_games(nflverse.load_schedules(), stadiums)
-    current = int(games.filter(pl.col("kickoff_utc") <= now)["season"].max())
+    current = current_season(games, now)
     seasons = list(range(FIRST_RATING_SEASON, current + 1))
     # Refetch last season's cache once after its final game (+7d) so late playoff
     # data and stat corrections are picked up.
