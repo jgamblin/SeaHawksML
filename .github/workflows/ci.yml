@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["predictions/**", "data/cache/**", "data/features/**", "models/**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run pytest
