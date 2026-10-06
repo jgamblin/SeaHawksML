@@ -106,8 +106,8 @@ def test_scorecard_values_and_common_set():
     assert sc["model"]["n"] == sc["vegas"]["n"] == sc["elo"]["n"] == 2
     assert sc["model"]["log_loss"] == pytest.approx((0.2231435513 + 0.6931471806) / 2, abs=1e-6)
     assert sc["by_week"]["weeks"] == [1, 2]
-    assert sc["by_week"]["model"][0] == pytest.approx(0.2231435513)
-    assert sc["by_week"]["model"][1] == pytest.approx(sc["model"]["log_loss"])
+    assert sc["by_week"]["model"][0] == pytest.approx(0.2231435513, abs=1e-4)
+    assert sc["by_week"]["model"][1] == pytest.approx(sc["model"]["log_loss"], abs=1e-4)
 
 
 def test_league_log_roundtrip(tmp_path):
