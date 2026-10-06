@@ -3,7 +3,7 @@
 import polars as pl
 
 from seahawks_ml.data import RawData
-from seahawks_ml.features.availability import GROUPS, AvailabilityParams, compute_availability
+from seahawks_ml.features.availability import GROUPS, OFFENSE_GROUPS, AvailabilityParams, compute_availability
 from seahawks_ml.features.base import team_games
 from seahawks_ml.features.coaching import new_head_coach
 from seahawks_ml.features.columns import FEATURE_COLUMNS, ID_COLUMNS
@@ -52,9 +52,24 @@ def build_features(
                                    availability_params), on="game_id")
         .join(compute_weather(games, raw.weather), on="game_id")
     )
-    # Each availability mode feeds one representation; the other's columns are 0.0.
-    avail = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]
-    count_mode = availability_params.mode == "count"
+    # Each availability mode feeds one representation; the other columns are 0.0.
+    mode = availability_params.mode
+    old = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]
+
+    def group_diff(g: str) -> pl.Expr:
+        return pl.col(f"home_out_{g}") - pl.col(f"away_out_{g}")
+
+    def pooled(offense: bool) -> pl.Expr:
+        return pl.sum_horizontal(group_diff(g) for g in GROUPS if (g in OFFENSE_GROUPS) == offense)
+
+    avail_exprs = {
+        **{c: (pl.col(c) if mode == "count" else None) for c in old},
+        **{f"out_{g}_diff": (group_diff(g) if mode in ("groups", "values") else None) for g in GROUPS},
+        "off_out_diff": (pl.col("home_off_out") - pl.col("away_off_out") if mode == "count_diff"
+                         else pooled(True) if mode == "values_pooled" else None),
+        "def_out_diff": (pl.col("home_def_out") - pl.col("away_def_out") if mode == "count_diff"
+                         else pooled(False) if mode == "values_pooled" else None),
+    }
     frame = frame.with_columns(
         (pl.col("elo_home_pre") - pl.col("elo_away_pre")).alias("elo_diff"),
         (pl.col("home_off_rating") - pl.col("away_off_rating")).alias("off_rating_diff"),
@@ -69,8 +84,6 @@ def build_features(
         pl.col("away_new_head_coach").alias("away_new_coach"),
         (pl.col("home_off_out").is_not_null() & pl.col("away_off_out").is_not_null())
         .cast(pl.Int64).alias("availability_known"),
-        *[(pl.col(c).fill_null(0.0) if count_mode else pl.lit(0.0)).alias(c) for c in avail],
-        *[(pl.lit(0.0) if count_mode else (pl.col(f"home_out_{g}") - pl.col(f"away_out_{g}")).fill_null(0.0))
-          .alias(f"out_{g}_diff") for g in GROUPS],
+        *[(e.fill_null(0.0) if e is not None else pl.lit(0.0)).alias(c) for c, e in avail_exprs.items()],
     )
     return frame.select(ID_COLUMNS + FEATURE_COLUMNS).sort("kickoff_utc", "game_id")

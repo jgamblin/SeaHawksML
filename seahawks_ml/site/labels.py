@@ -16,6 +16,7 @@ FEATURE_LABELS = {
     "out_ol_diff": "Offensive line value out (home − away)", "out_wrte_diff": "WR/TE value out (home − away)",
     "out_rb_diff": "RB value out (home − away)", "out_dl_diff": "Defensive line value out (home − away)",
     "out_lb_diff": "Linebacker value out (home − away)", "out_db_diff": "Secondary value out (home − away)",
+    "off_out_diff": "Offense injuries (home − away)", "def_out_diff": "Defense injuries (home − away)",
     "rest_diff": "Rest advantage",
     "home_post_bye": "Home off bye", "away_post_bye": "Away off bye",
     "home_short_week": "Home short week", "away_short_week": "Away short week",

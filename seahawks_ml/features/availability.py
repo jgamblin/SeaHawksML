@@ -9,8 +9,8 @@ report rows at all (the report is not out yet, so availability is unknown, not z
 Outputs per team (home_/away_ prefix):
 - `off_out` / `def_out`: snap-share-weighted count of starters listed Out or Doubtful.
 - `out_<group>` for the six position groups (ol, wrte, rb, dl, lb, db): the same weight
-  per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In mode
-  "values" each missing starter's weight is snap share x quality:
+  per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In the
+  modes "values" and "values_pooled" each missing starter's weight is snap share x quality:
   - WR/TE, RB: 1 + quality_scale x (shrunk EPA/opportunity - replacement), floored at 0, so a
     replacement-level player weighs 1 and better ones more. Receiving (EPA per target) and
     rushing (EPA per carry) are kept apart: over the player's games before kickoff in the
@@ -40,7 +40,8 @@ from seahawks_ml.config import FIRST_SNAP_SEASON
 OUT_STATUSES = {"Out", "Doubtful"}
 STARTER_SHARE = 0.5
 MIN_APPEARANCES = 2
-AVAILABILITY_MODES = ("count", "groups", "values")
+AVAILABILITY_MODES = ("count", "groups", "values", "count_diff", "values_pooled")
+VALUE_MODES = frozenset({"values", "values_pooled"})  # modes that weight starters by quality
 GROUPS = ("ol", "wrte", "rb", "dl", "lb", "db")
 OFFENSE_GROUPS = frozenset({"ol", "wrte", "rb"})
 # Snap-count positions plus the coarser labels nflverse's players table uses (fallback).
@@ -72,7 +73,9 @@ class AvailabilityParams:
     """How missing starters are turned into features.
 
     mode: "count" - the four off/def snap-share columns; "groups" - six per-position-group
-    snap-share columns; "values" - the same six groups weighted by player quality.
+    snap-share columns; "values" - the same six groups weighted by player quality;
+    "count_diff" - home minus away of the off/def counts (2 columns); "values_pooled" - quality-weighted
+    out, home minus away, pooled over offense (OL+WRTE+RB) and defense (DL+LB+DB) groups (2 columns).
     prior_opps / quality_scale: skill-player (WR/TE, RB) EPA-per-opportunity shrinkage and scale.
     lineman_quality / durability_weight: OL/DL/LB/DB quality from draft bucket and snap durability.
     """
@@ -208,7 +211,7 @@ def compute_availability(
     pfr_to_gsis = {r["pfr_id"]: r["gsis_id"] for r in players.iter_rows(named=True) if r["pfr_id"]}
     player_info = {r["gsis_id"]: r for r in players.iter_rows(named=True)}
     kickoff = {r["game_id"]: r["kickoff_utc"] for r in games.iter_rows(named=True)}
-    values = params.mode == "values"
+    values = params.mode in VALUE_MODES
     skill = _SkillHistory(player_stats, kickoff) if values else None
 
     # (team, game) -> [(gsis, offense share, defense share, snap position)]
