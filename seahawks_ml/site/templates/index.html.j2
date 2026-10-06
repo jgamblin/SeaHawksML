@@ -160,6 +160,17 @@
   /* ---------- charts ---------- */
   .chart { position:relative; height:260px; }
   .chart.tall { height:300px; }
+  .changes-h { font-family:var(--display); text-transform:uppercase; letter-spacing:.12em; font-weight:700;
+               font-size:.78rem; color:var(--muted); margin:18px 0 8px; }
+  .changes { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .changes > li { border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--surface-2); }
+  .changes-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-bottom:4px; }
+  .changes-runs { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:.06em; font-size:.88rem; }
+  .changes-runs em { font-style:normal; color:var(--muted); }
+  .delta { font-size:.8rem; font-variant-numeric:tabular-nums; color:var(--muted); }
+  .delta.pos { color:var(--pos); } .delta.neg { color:var(--neg); }
+  .changes ul { margin:0; padding-left:18px; color:var(--muted); font-size:.86rem; }
+  .changes ul li { margin:2px 0; }
   .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; color:var(--muted); margin:0 0 10px; }
   .legend i { display:inline-block; width:18px; height:3px; vertical-align:middle; margin-right:6px; background:var(--action); }
   .legend i.dash { background:repeating-linear-gradient(90deg, var(--wolf) 0 5px, transparent 5px 9px); }
@@ -342,6 +353,24 @@
       {% if g %}
       <div class="legend"><span><i></i>Model</span><span><i class="dash"></i>Vegas (benchmark)</span></div>
       <div class="chart"><canvas id="trajectory" aria-label="Win probability by run, model versus Vegas" role="img"></canvas></div>
+      {% set run_names = {"midweek": "Midweek", "final_injury": "Final injury", "gameday": "Gameday"} %}
+      <h3 class="changes-h">What changed</h3>
+      {% if g.changes %}
+      <ol class="changes">
+        {% for c in g.changes|reverse %}
+        <li>
+          <div class="changes-head">
+            <span class="changes-runs">{{ run_names.get(c.from_run, c.from_run) }} <em>→</em> {{ run_names.get(c.to_run, c.to_run) }}</span>
+            <span class="delta {{ 'pos' if c.p_delta > 0 else ('neg' if c.p_delta < 0 else '') }}">{{ "%+.1f"|format(c.p_delta) }} pts win %</span>
+            <span class="delta {{ 'pos' if c.margin_delta > 0 else ('neg' if c.margin_delta < 0 else '') }}">{{ "%+.1f"|format(c.margin_delta) }} margin</span>
+          </div>
+          <ul>{% for n in c.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="note">Notes appear after the next run, comparing it with this one.</p>
+      {% endif %}
       {% else %}
       <div class="empty"><strong>Nothing this week</strong>The trajectory appears after the midweek run.</div>
       {% endif %}

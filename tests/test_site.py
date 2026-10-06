@@ -84,3 +84,22 @@ def test_site_data_uses_latest_kickoff(tmp_path):
     data = build_site_data(read_history(path), datetime(2026, 10, 10, 19, tzinfo=UTC))
     g = data["season_log"][0]
     assert (g["kickoff_utc"], g["opponent"], g["seahawks_home"]) == ("2026-10-12T01:15:00+00:00", "LA", False)
+
+
+def test_site_data_includes_changes_between_runs(tmp_path):
+    from seahawks_ml.pipeline.history import read_history
+    data = build_site_data(read_history(_history(tmp_path)), datetime(2026, 10, 10, 19, tzinfo=UTC))
+    changes = data["next_game"]["changes"]
+    assert len(changes) == 1
+    assert (changes[0]["from_run"], changes[0]["to_run"]) == ("midweek", "final_injury")
+    assert changes[0]["p_delta"] == -4.0
+    assert "Final injury report for this week now included" in changes[0]["notes"]
+    single = next(g for g in data["season_log"] if g["game_id"] == "g1")
+    assert single["changes"] == []
+
+
+def test_build_site_renders_change_notes(tmp_path):
+    out = build_site(datetime(2026, 10, 10, 19, tzinfo=UTC), history_path=_history(tmp_path), out_dir=tmp_path / "s")
+    html = out.read_text()
+    assert "What changed" in html
+    assert "Final injury report for this week now included" in html
