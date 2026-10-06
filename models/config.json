@@ -1,0 +1,24 @@
+{
+  "model": {
+    "kind": "ridge",
+    "params": {
+      "alpha": 100.0
+    },
+    "half_life": 12.0,
+    "prob_method": "gaussian",
+    "bandwidth": 2.0,
+    "ensemble_weight": 0.0,
+    "classifier_c": 0.1,
+    "use_platt": false,
+    "inner_folds": 20
+  },
+  "rating": {
+    "prior_regression": 0.6,
+    "prior_games": 6.0,
+    "prior_games_new_coach": 2.0
+  },
+  "qb": {
+    "prior_dropbacks": 150.0,
+    "window_seasons": 3
+  }
+}

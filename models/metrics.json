@@ -1,0 +1,89 @@
+{
+  "model_version": "20261006-20de6aa0",
+  "trained_at": "2026-10-06T13:49:59.001515+00:00",
+  "train_seasons": [
+    2009,
+    2010,
+    2011,
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "n_games": 4694,
+  "config": {
+    "model": {
+      "kind": "ridge",
+      "params": {
+        "alpha": 100.0
+      },
+      "half_life": 12.0,
+      "prob_method": "gaussian",
+      "bandwidth": 2.0,
+      "ensemble_weight": 0.0,
+      "classifier_c": 0.1,
+      "use_platt": false,
+      "inner_folds": 20
+    },
+    "rating": {
+      "prior_regression": 0.6,
+      "prior_games": 6.0,
+      "prior_games_new_coach": 2.0
+    },
+    "qb": {
+      "prior_dropbacks": 150.0,
+      "window_seasons": 3
+    }
+  },
+  "feature_columns": [
+    "home_field",
+    "hfa_trend",
+    "no_crowd",
+    "elo_diff",
+    "off_rating_diff",
+    "def_rating_diff",
+    "qb_epa_diff",
+    "qb_cpoe_diff",
+    "home_qb_round_1",
+    "home_qb_day_2",
+    "away_qb_round_1",
+    "away_qb_day_2",
+    "home_new_coach",
+    "away_new_coach",
+    "home_off_out",
+    "home_def_out",
+    "away_off_out",
+    "away_def_out",
+    "availability_known",
+    "rest_diff",
+    "home_post_bye",
+    "away_post_bye",
+    "home_short_week",
+    "away_short_week",
+    "travel_diff",
+    "home_tz_shift",
+    "away_tz_shift",
+    "home_body_clock",
+    "away_body_clock",
+    "primetime",
+    "div_game",
+    "week_number",
+    "is_final_regular_week",
+    "is_playoff",
+    "is_indoor",
+    "temp_f",
+    "wind_mph",
+    "precip_in"
+  ]
+}

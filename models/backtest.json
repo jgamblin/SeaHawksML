@@ -1,0 +1,826 @@
+{
+  "seasons": [
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023
+  ],
+  "config": {
+    "model": {
+      "kind": "ridge",
+      "params": {
+        "alpha": 100.0
+      },
+      "half_life": 12.0,
+      "prob_method": "gaussian",
+      "bandwidth": 2.0,
+      "ensemble_weight": 0.0,
+      "classifier_c": 0.1,
+      "use_platt": false,
+      "inner_folds": 20
+    },
+    "rating": {
+      "prior_regression": 0.6,
+      "prior_games": 6.0,
+      "prior_games_new_coach": 2.0
+    },
+    "qb": {
+      "prior_dropbacks": 150.0,
+      "window_seasons": 3
+    }
+  },
+  "score": {
+    "model": {
+      "n": 3259,
+      "log_loss": 0.6285267143125296,
+      "brier": 0.2187004067745336,
+      "accuracy": 0.6455189405605174,
+      "margin_mae": 10.304275797321258,
+      "log_loss_ci90": [
+        0.6189949856197613,
+        0.6374463078316497
+      ],
+      "calibration": [
+        {
+          "bin_low": 0.0,
+          "bin_high": 0.1,
+          "n": 2,
+          "mean_pred": 0.055253761753981195,
+          "mean_outcome": 0.0
+        },
+        {
+          "bin_low": 0.1,
+          "bin_high": 0.2,
+          "n": 52,
+          "mean_pred": 0.16312385026587573,
+          "mean_outcome": 0.25
+        },
+        {
+          "bin_low": 0.2,
+          "bin_high": 0.30000000000000004,
+          "n": 156,
+          "mean_pred": 0.257081148386415,
+          "mean_outcome": 0.26282051282051283
+        },
+        {
+          "bin_low": 0.30000000000000004,
+          "bin_high": 0.4,
+          "n": 351,
+          "mean_pred": 0.3574027914680912,
+          "mean_outcome": 0.33903133903133903
+        },
+        {
+          "bin_low": 0.4,
+          "bin_high": 0.5,
+          "n": 610,
+          "mean_pred": 0.4523375791594285,
+          "mean_outcome": 0.4459016393442623
+        },
+        {
+          "bin_low": 0.5,
+          "bin_high": 0.6000000000000001,
+          "n": 736,
+          "mean_pred": 0.5515927852202525,
+          "mean_outcome": 0.5645380434782609
+        },
+        {
+          "bin_low": 0.6000000000000001,
+          "bin_high": 0.7000000000000001,
+          "n": 704,
+          "mean_pred": 0.6471864526237572,
+          "mean_outcome": 0.6377840909090909
+        },
+        {
+          "bin_low": 0.7000000000000001,
+          "bin_high": 0.8,
+          "n": 458,
+          "mean_pred": 0.7459757650574903,
+          "mean_outcome": 0.7467248908296943
+        },
+        {
+          "bin_low": 0.8,
+          "bin_high": 0.9,
+          "n": 172,
+          "mean_pred": 0.8379659603105576,
+          "mean_outcome": 0.8866279069767442
+        },
+        {
+          "bin_low": 0.9,
+          "bin_high": 1.0,
+          "n": 18,
+          "mean_pred": 0.9202021535055499,
+          "mean_outcome": 0.9444444444444444
+        }
+      ]
+    },
+    "elo": {
+      "n": 3259,
+      "log_loss": 0.6327256313825868,
+      "brier": 0.22034819538281844,
+      "accuracy": 0.6442870341854019,
+      "margin_mae": null,
+      "log_loss_ci90": [
+        0.622540835933724,
+        0.642562086088787
+      ],
+      "calibration": [
+        {
+          "bin_low": 0.0,
+          "bin_high": 0.1,
+          "n": 2,
+          "mean_pred": 0.09659943639129237,
+          "mean_outcome": 0.0
+        },
+        {
+          "bin_low": 0.1,
+          "bin_high": 0.2,
+          "n": 47,
+          "mean_pred": 0.1645000083564236,
+          "mean_outcome": 0.24468085106382978
+        },
+        {
+          "bin_low": 0.2,
+          "bin_high": 0.30000000000000004,
+          "n": 203,
+          "mean_pred": 0.25993947680395124,
+          "mean_outcome": 0.3103448275862069
+        },
+        {
+          "bin_low": 0.30000000000000004,
+          "bin_high": 0.4,
+          "n": 356,
+          "mean_pred": 0.35528745283877083,
+          "mean_outcome": 0.3539325842696629
+        },
+        {
+          "bin_low": 0.4,
+          "bin_high": 0.5,
+          "n": 525,
+          "mean_pred": 0.4515905421802494,
+          "mean_outcome": 0.43333333333333335
+        },
+        {
+          "bin_low": 0.5,
+          "bin_high": 0.6000000000000001,
+          "n": 692,
+          "mean_pred": 0.5497527572388979,
+          "mean_outcome": 0.559971098265896
+        },
+        {
+          "bin_low": 0.6000000000000001,
+          "bin_high": 0.7000000000000001,
+          "n": 700,
+          "mean_pred": 0.6488725074952947,
+          "mean_outcome": 0.6292857142857143
+        },
+        {
+          "bin_low": 0.7000000000000001,
+          "bin_high": 0.8,
+          "n": 469,
+          "mean_pred": 0.7472184171020999,
+          "mean_outcome": 0.7249466950959488
+        },
+        {
+          "bin_low": 0.8,
+          "bin_high": 0.9,
+          "n": 245,
+          "mean_pred": 0.836967891078688,
+          "mean_outcome": 0.8489795918367347
+        },
+        {
+          "bin_low": 0.9,
+          "bin_high": 1.0,
+          "n": 20,
+          "mean_pred": 0.9161483941163981,
+          "mean_outcome": 0.85
+        }
+      ]
+    },
+    "home": {
+      "n": 3259,
+      "log_loss": 0.6859086136182624,
+      "brier": 0.24546712496189396,
+      "accuracy": 0.5608253772713274,
+      "margin_mae": null,
+      "log_loss_ci90": [
+        0.6818639493443992,
+        0.6901604855327028
+      ],
+      "calibration": [
+        {
+          "bin_low": 0.5,
+          "bin_high": 0.6000000000000001,
+          "n": 3259,
+          "mean_pred": 0.5700110075899412,
+          "mean_outcome": 0.5587603559374041
+        }
+      ]
+    },
+    "vegas": {
+      "n": 3259,
+      "log_loss": 0.6130001385489154,
+      "brier": 0.21153001329962662,
+      "accuracy": 0.6610717585463505,
+      "margin_mae": null,
+      "log_loss_ci90": [
+        0.6036066228003628,
+        0.6218390030094838
+      ],
+      "calibration": [
+        {
+          "bin_low": 0.0,
+          "bin_high": 0.1,
+          "n": 1,
+          "mean_pred": 0.08963594428796923,
+          "mean_outcome": 0.0
+        },
+        {
+          "bin_low": 0.1,
+          "bin_high": 0.2,
+          "n": 40,
+          "mean_pred": 0.15590118770199193,
+          "mean_outcome": 0.2
+        },
+        {
+          "bin_low": 0.2,
+          "bin_high": 0.30000000000000004,
+          "n": 147,
+          "mean_pred": 0.26021738817812656,
+          "mean_outcome": 0.18027210884353742
+        },
+        {
+          "bin_low": 0.30000000000000004,
+          "bin_high": 0.4,
+          "n": 403,
+          "mean_pred": 0.35492515376540806,
+          "mean_outcome": 0.3188585607940447
+        },
+        {
+          "bin_low": 0.4,
+          "bin_high": 0.5,
+          "n": 582,
+          "mean_pred": 0.43347512180972575,
+          "mean_outcome": 0.4424398625429553
+        },
+        {
+          "bin_low": 0.5,
+          "bin_high": 0.6000000000000001,
+          "n": 716,
+          "mean_pred": 0.5691592001622422,
+          "mean_outcome": 0.5488826815642458
+        },
+        {
+          "bin_low": 0.6000000000000001,
+          "bin_high": 0.7000000000000001,
+          "n": 760,
+          "mean_pred": 0.6486922055034288,
+          "mean_outcome": 0.6743421052631579
+        },
+        {
+          "bin_low": 0.7000000000000001,
+          "bin_high": 0.8,
+          "n": 458,
+          "mean_pred": 0.7444506909209284,
+          "mean_outcome": 0.7762008733624454
+        },
+        {
+          "bin_low": 0.8,
+          "bin_high": 0.9,
+          "n": 141,
+          "mean_pred": 0.8484511361415373,
+          "mean_outcome": 0.925531914893617
+        },
+        {
+          "bin_low": 0.9,
+          "bin_high": 1.0,
+          "n": 11,
+          "mean_pred": 0.9268160607995508,
+          "mean_outcome": 0.8181818181818182
+        }
+      ]
+    },
+    "seahawks_only": {
+      "n": 212,
+      "log_loss": 0.6042914561668664,
+      "brier": 0.20761134184417482,
+      "accuracy": 0.6635071090047393,
+      "margin_mae": null
+    },
+    "per_season": [
+      {
+        "season": 2012,
+        "n": 267,
+        "log_loss": 0.6189221744873704,
+        "brier": 0.21555887924139241,
+        "accuracy": 0.6165413533834586,
+        "margin_mae": 11.160498720197642
+      },
+      {
+        "season": 2013,
+        "n": 267,
+        "log_loss": 0.6142097889260357,
+        "brier": 0.2134282704755386,
+        "accuracy": 0.6654135338345865,
+        "margin_mae": 9.909763115924564
+      },
+      {
+        "season": 2014,
+        "n": 267,
+        "log_loss": 0.621547956576707,
+        "brier": 0.21587635608104158,
+        "accuracy": 0.6578947368421053,
+        "margin_mae": 11.702747278033033
+      },
+      {
+        "season": 2015,
+        "n": 267,
+        "log_loss": 0.6571753618046291,
+        "brier": 0.23186190221614988,
+        "accuracy": 0.6067415730337079,
+        "margin_mae": 10.475638484208366
+      },
+      {
+        "season": 2016,
+        "n": 267,
+        "log_loss": 0.6328953330762763,
+        "brier": 0.21990363418950962,
+        "accuracy": 0.6150943396226415,
+        "margin_mae": 9.313664058254243
+      },
+      {
+        "season": 2017,
+        "n": 267,
+        "log_loss": 0.6176504673809411,
+        "brier": 0.21476309309412403,
+        "accuracy": 0.6629213483146067,
+        "margin_mae": 10.378830640400126
+      },
+      {
+        "season": 2018,
+        "n": 267,
+        "log_loss": 0.6123564845808974,
+        "brier": 0.21037700053968308,
+        "accuracy": 0.690566037735849,
+        "margin_mae": 9.929767941347107
+      },
+      {
+        "season": 2019,
+        "n": 267,
+        "log_loss": 0.6356037606971069,
+        "brier": 0.22213130455478078,
+        "accuracy": 0.631578947368421,
+        "margin_mae": 10.44399178478451
+      },
+      {
+        "season": 2020,
+        "n": 269,
+        "log_loss": 0.610189240143983,
+        "brier": 0.20936976617387432,
+        "accuracy": 0.6791044776119403,
+        "margin_mae": 9.898172332759657
+      },
+      {
+        "season": 2021,
+        "n": 285,
+        "log_loss": 0.635319634492715,
+        "brier": 0.220955679300587,
+        "accuracy": 0.6338028169014085,
+        "margin_mae": 10.908924561737821
+      },
+      {
+        "season": 2022,
+        "n": 284,
+        "log_loss": 0.6417724517705997,
+        "brier": 0.22378155264823782,
+        "accuracy": 0.6560283687943262,
+        "margin_mae": 9.259482442428071
+      },
+      {
+        "season": 2023,
+        "n": 285,
+        "log_loss": 0.6425674026737833,
+        "brier": 0.2255312682103268,
+        "accuracy": 0.631578947368421,
+        "margin_mae": 10.29898635800647
+      }
+    ]
+  },
+  "trials": [
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 10.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6295614909413811
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 10.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6290853605512133
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 10.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6290639400231229
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6288815525021111
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6285269480433723
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6285267143125296
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 300.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6291200215979076
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 300.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6286242682909298
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 300.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6285353243833129
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 1000.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6326595071261059
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 1000.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6310383172800892
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 1000.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6304350618836918
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 4,
+          "n_estimators": 200,
+          "learning_rate": 0.03,
+          "min_child_samples": 50,
+          "reg_lambda": 5.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6303566547832092
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 4,
+          "n_estimators": 200,
+          "learning_rate": 0.03,
+          "min_child_samples": 50,
+          "reg_lambda": 5.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.629878217669909
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 4,
+          "n_estimators": 200,
+          "learning_rate": 0.03,
+          "min_child_samples": 50,
+          "reg_lambda": 5.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6300800305920746
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 8,
+          "n_estimators": 300,
+          "learning_rate": 0.02,
+          "min_child_samples": 80,
+          "reg_lambda": 10.0
+        },
+        "half_life": 3.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6337796390709988
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 8,
+          "n_estimators": 300,
+          "learning_rate": 0.02,
+          "min_child_samples": 80,
+          "reg_lambda": 10.0
+        },
+        "half_life": 6.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6326403458446503
+    },
+    {
+      "config": {
+        "kind": "lgbm",
+        "params": {
+          "num_leaves": 8,
+          "n_estimators": 300,
+          "learning_rate": 0.02,
+          "min_child_samples": 80,
+          "reg_lambda": 10.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6330808505792503
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "empirical",
+        "bandwidth": 1.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6342599778071744
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "empirical",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6313667257595695
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "empirical",
+        "bandwidth": 4.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6350271671265016
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.3,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6292432684686545
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.5,
+        "classifier_c": 0.1,
+        "use_platt": false,
+        "inner_folds": 20
+      },
+      "log_loss": 0.6302169294296501
+    },
+    {
+      "config": {
+        "kind": "ridge",
+        "params": {
+          "alpha": 100.0
+        },
+        "half_life": 12.0,
+        "prob_method": "gaussian",
+        "bandwidth": 2.0,
+        "ensemble_weight": 0.0,
+        "classifier_c": 0.1,
+        "use_platt": true,
+        "inner_folds": 20
+      },
+      "log_loss": 0.630451092978215
+    }
+  ]
+}
