@@ -12,7 +12,14 @@ from datetime import UTC, datetime, timedelta
 
 import polars as pl
 
-from seahawks_ml.config import BACKTEST_SEASONS, FEATURES_PATH, HOLDOUT_SEASONS, TEAM
+from seahawks_ml.config import (
+    BACKTEST_SEASONS,
+    FEATURES_PATH,
+    HOLDOUT_SEASONS,
+    LEAGUE_PATH,
+    PREDICTIONS_PATH,
+    TEAM,
+)
 
 RATING_GRID = [(0.5, 4.0, 2.0), (0.6, 4.0, 2.0), (0.7, 6.0, 3.0), (0.6, 6.0, 2.0)]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
@@ -152,53 +159,82 @@ def _predict(args, changed: list[bool]) -> None:
     from seahawks_ml.models.store import METRICS_PATH, check_model_matches, load_config, load_model
     from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
     from seahawks_ml.pipeline.history import append_record, read_history, runs_done
+    from seahawks_ml.pipeline.league import (
+        due_league_games,
+        make_league_predictions,
+        new_league_results,
+        validate_league,
+    )
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
     from seahawks_ml.pipeline.results import new_results
     from seahawks_ml.stadiums import load_stadiums
 
     now = _now(args)
     stadiums = load_stadiums()
-    history = read_history()
+    history = read_history(PREDICTIONS_PATH)
+    league_log = read_history(LEAGUE_PATH)
     games = prepare_games(nflverse.load_schedules(), stadiums)
 
-    results = new_results(history, games, now)
-    for rec in results:
-        append_record(rec)
+    for rec in new_results(history, games, now):
+        append_record(rec, PREDICTIONS_PATH)
         changed.append(True)
         print(f"result recorded: {rec['game_id']} {rec['margin_seahawks']:+d}")
-    history = read_history()
+    history = read_history(PREDICTIONS_PATH)
+    for rec in new_league_results(league_log, games, now):
+        append_record(rec, LEAGUE_PATH, validate_league)
+        changed.append(True)
+        print(f"league result recorded: {rec['game_id']} {rec['margin_home']:+d}")
+    league_log = read_history(LEAGUE_PATH)
 
     game = next_game(games, TEAM, now)
+    run_type = None
     if game is None:
         print("no upcoming Seahawks game")
-        return
-    run_type = args.run_type or due_run(now, game["kickoff_utc"], runs_done(history, game["game_id"]),
-                                        previous_kickoff(games, TEAM, now))
-    if run_type is None:
-        print(f"no run due for {game['game_id']} (kickoff {game['kickoff_utc']:%Y-%m-%d %H:%M} UTC)")
+    else:
+        run_type = args.run_type or due_run(now, game["kickoff_utc"], runs_done(history, game["game_id"]),
+                                            previous_kickoff(games, TEAM, now))
+        if run_type is None:
+            print(f"no run due for {game['game_id']} (kickoff {game['kickoff_utc']:%Y-%m-%d %H:%M} UTC)")
+    logged = {r["game_id"] for r in league_log if r["type"] == "league_prediction"}
+    league_ids = due_league_games(games, now, logged)
+    if run_type is None and not league_ids:
         return
 
-    print(f"{run_type} run for {game['game_id']}")
+    if run_type:
+        print(f"{run_type} run for {game['game_id']}")
+    if league_ids:
+        print(f"league run for {len(league_ids)} games")
     config = load_config()
     stadiums, raw = _load(now, games)
-    if not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
+    if run_type and not args.run_type and not previous_game_ready(raw.games, raw.team_epa, TEAM, now):
         print("previous game data not in yet; will retry next hour")
-        return
-    target = raw.games.filter(pl.col("game_id") == game["game_id"])
-    if game["kickoff_utc"] - now <= FORECAST_HORIZON:
-        forecast = forecast_for_games(target, stadiums)
+        run_type = None
+        if not league_ids:
+            return
+    target_ids = list(league_ids) + ([game["game_id"]] if run_type else [])
+    targets = raw.games.filter(pl.col("game_id").is_in(target_ids) & (pl.col("kickoff_utc") - now <= FORECAST_HORIZON))
+    if targets.height:
+        forecast = forecast_for_games(targets, stadiums)
         raw = replace(raw, weather=pl.concat([raw.weather, forecast]).unique(["stadium_id", "time_utc"], keep="last"))
     frame = _build(raw, stadiums, config)
-    row = single_game_row(frame, game["game_id"])
     model = load_model()
     metrics = json.loads(METRICS_PATH.read_text())
     check_model_matches(metrics, config)
     version = metrics["model_version"]
-    record = make_prediction(row, model, run_type, now, version,
-                             latest_injury_week(raw.injuries, game["season"]))
-    append_record(record)
-    changed.append(True)
-    print(f"SEA win probability {record['p_seahawks']:.1%}, margin {record['margin_seahawks']:+.1f}")
+
+    if run_type:
+        row = single_game_row(frame, game["game_id"])
+        record = make_prediction(row, model, run_type, now, version,
+                                 latest_injury_week(raw.injuries, game["season"]))
+        append_record(record, PREDICTIONS_PATH)
+        changed.append(True)
+        print(f"SEA win probability {record['p_seahawks']:.1%}, margin {record['margin_seahawks']:+.1f}")
+    if league_ids:
+        records = make_league_predictions(frame.filter(pl.col("game_id").is_in(league_ids)), model, now, version)
+        for rec in records:
+            append_record(rec, LEAGUE_PATH, validate_league)
+            changed.append(True)
+        print(f"logged {len(records)} league predictions")
 
 
 def cmd_build_site(args) -> None:
