@@ -28,3 +28,17 @@ def test_availability_weights_out_starters_by_snap_share():
     assert row["home_off_out"] == pytest.approx(0.9)
     assert row["home_def_out"] == pytest.approx(0.9)
     assert row["away_off_out"] == 0.0
+
+
+def test_snaps_with_null_position_are_kept():
+    raw = make_raw()
+    game = raw.games.filter((pl.col("season") == 2014) & (pl.col("week") == 5)).row(0, named=True)
+    team = game["home_team"]
+    injuries = pl.DataFrame([
+        {"season": 2014, "week": 5, "team": team, "gsis_id": f"{team}-P0", "position": "WR",
+         "report_status": "Out"},
+    ], schema=INJURIES_SCHEMA)
+    snaps = raw.snaps.with_columns(pl.lit(None, dtype=pl.Utf8).alias("position"))
+    out = compute_availability(raw.games, snaps, injuries, raw.players)
+    row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
+    assert row["home_off_out"] == pytest.approx(0.9)

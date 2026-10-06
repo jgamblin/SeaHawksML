@@ -29,7 +29,7 @@ def compute_availability(
     kickoff = {r["game_id"]: r["kickoff_utc"] for r in games.iter_rows(named=True)}
 
     team_game_snaps: dict[tuple[str, str], list[tuple[str, float, float]]] = defaultdict(list)
-    for r in snaps.filter(pl.col("position") != "QB").iter_rows(named=True):
+    for r in snaps.filter(pl.col("position").ne_missing("QB")).iter_rows(named=True):
         gsis = pfr_to_gsis.get(r["pfr_player_id"])
         if gsis and r["game_id"] in kickoff:
             team_game_snaps[(r["team"], r["game_id"])].append(
