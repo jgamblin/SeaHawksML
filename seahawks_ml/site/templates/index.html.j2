@@ -351,6 +351,7 @@
       <p class="eyebrow">Why</p>
       <h2 id="why-h">Biggest factors</h2>
       <p class="sub">Contribution to the projected margin, in points.</p>
+      <p class="note" style="margin:-8px 0 14px">Home-field advantage is part of the model's baseline, so it isn't listed here.</p>
       {% if g and g.latest.top_factors %}
       {% set fmax = [g.latest.top_factors|map(attribute="points")|map("abs")|max, 0.1]|max %}
       <div class="axis-key"><span class="neg">◀ Against Seattle</span><span class="pos">For Seattle ▶</span></div>
