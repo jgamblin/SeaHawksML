@@ -6,6 +6,7 @@ refreshed on every run. Play-by-play is aggregated immediately so the full
 """
 
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 import nflreadpy as nfl
@@ -137,13 +138,25 @@ def _fetch_snaps(season: int) -> pl.DataFrame:
 
 
 def load_season_tables(
-    seasons: list[int], current_season: int, cache_dir: Path = CACHE_DIR
+    seasons: list[int],
+    current_season: int,
+    cache_dir: Path = CACHE_DIR,
+    stale_before: dict[int, datetime] | None = None,
 ) -> dict[str, pl.DataFrame]:
-    """Return team_epa, qb_games, injuries and snaps for the given seasons."""
+    """Return team_epa, qb_games, injuries and snaps for the given seasons.
+
+    The current season is always refetched. A completed season is also refetched when
+    any of its cache files was written before `stale_before[season]`.
+    """
     parts: dict[str, list[pl.DataFrame]] = {k: [] for k in ("team_epa", "qb_games", "injuries", "snaps")}
     for season in seasons:
-        refresh = season == current_season
-        tolerate = refresh  # only the current season may legitimately lack data
+        tolerate = season == current_season  # only the current season may lack data
+        cached = list(cache_dir.glob(f"*_{season}.parquet"))
+        cutoff = (stale_before or {}).get(season)
+        stale = cutoff is not None and any(
+            datetime.fromtimestamp(f.stat().st_mtime, tz=cutoff.tzinfo) < cutoff for f in cached
+        )
+        refresh = tolerate or stale
         team_path = cache_dir / f"team_epa_{season}.parquet"
         qb_path = cache_dir / f"qb_games_{season}.parquet"
         if refresh or not (team_path.exists() and qb_path.exists()):

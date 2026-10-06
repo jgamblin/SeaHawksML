@@ -53,7 +53,13 @@ def load_raw(stadiums: dict[str, Stadium], now: datetime) -> RawData:
     games = prepare_games(nflverse.load_schedules(), stadiums)
     current = int(games.filter(pl.col("kickoff_utc") <= now)["season"].max())
     seasons = list(range(FIRST_RATING_SEASON, current + 1))
-    tables = nflverse.load_season_tables(seasons, current_season=current)
+    # Refetch last season's cache once after its final game (+7d) so late playoff
+    # data and stat corrections are picked up.
+    last_kickoff = games.filter(pl.col("season") == current - 1)["kickoff_utc"].max()
+    stale_before = {current - 1: last_kickoff + timedelta(days=7)} if last_kickoff is not None else None
+    tables = nflverse.load_season_tables(
+        seasons, current_season=current, stale_before=stale_before
+    )
     return RawData(
         games=games,
         team_epa=tables["team_epa"],

@@ -70,3 +70,32 @@ def test_completed_season_fetch_failure_propagates(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError):
         nv.load_season_tables([2099], current_season=2100, cache_dir=tmp_path)
     assert not (tmp_path / "injuries_2099.parquet").exists()
+
+
+def test_stale_before_refetches_old_cache_once(monkeypatch, tmp_path):
+    import os
+    from datetime import UTC, datetime
+
+    import seahawks_ml.ingest.nflverse as nv
+
+    calls = []
+
+    def load_pbp(season):
+        calls.append(season)
+        return _pbp()
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", load_pbp)
+    monkeypatch.setattr(nv.nfl, "load_injuries", _boom)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
+    assert calls == [2005]
+    cutoff = datetime(2020, 1, 1, tzinfo=UTC)
+    old = cutoff.timestamp() - 86400
+    for f in tmp_path.glob("*.parquet"):
+        os.utime(f, (old, old))
+    nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
+    assert calls == [2005]  # no stale_before -> cache kept
+    nv.load_season_tables([2005], 2006, cache_dir=tmp_path, stale_before={2005: cutoff})
+    assert calls == [2005, 2005]  # refetched
+    nv.load_season_tables([2005], 2006, cache_dir=tmp_path, stale_before={2005: cutoff})
+    assert calls == [2005, 2005]  # fresh now
