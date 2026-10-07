@@ -1,7 +1,7 @@
 """Decide whether a prediction run is due. Cheap: needs only the schedule and history.
 
 Windows are relative to kickoff, so Thursday/Monday/Saturday and international games
-work like Sunday games. Hourly cron runs land inside these windows; the first one in a
+work like Sunday games. Cron runs (every 15 minutes) land inside these windows; the first one in a
 window does the run, later ones see it in history and skip.
 """
 
@@ -13,7 +13,7 @@ import polars as pl
 RUN_WINDOWS = {
     "midweek": (timedelta(days=4, hours=12), timedelta(days=2)),
     "final_injury": (timedelta(hours=24), timedelta(hours=6)),
-    "gameday": (timedelta(hours=4), timedelta(minutes=90)),
+    "gameday": (timedelta(hours=6), timedelta(minutes=75)),
 }
 RESULT_GRACE = timedelta(hours=6)  # wait for the previous game's result before predicting
 

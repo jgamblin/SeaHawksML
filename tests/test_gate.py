@@ -21,8 +21,11 @@ SAT_430_ET = datetime(2026, 12, 19, 21, 30, tzinfo=UTC)
     (timedelta(hours=25), None),
     (timedelta(hours=24), "final_injury"),
     (timedelta(hours=7), "final_injury"),
-    (timedelta(hours=5), None),
+    (timedelta(hours=6), "gameday"),
+    (timedelta(hours=5), "gameday"),
     (timedelta(hours=3), "gameday"),
+    (timedelta(minutes=80), "gameday"),
+    (timedelta(minutes=75), None),
     (timedelta(minutes=60), None),
 ])
 def test_due_run_windows(kickoff, before, expected):

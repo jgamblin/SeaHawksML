@@ -258,6 +258,16 @@ def test_sim_only_run_waits_for_sim_hours(predict_env):
     assert changed and len(env.loads) == 1
 
 
+def test_sim_only_run_only_in_first_quarter_hour(predict_env):
+    env, changed = predict_env, []
+    base = (env.kick - timedelta(hours=36)).replace(hour=10)
+    for minute in (22, 37, 52):  # later 15-minute checks in a sim hour don't reload data
+        cli._predict(_args(base.replace(minute=minute)), changed)
+    assert not changed and env.loads == []
+    cli._predict(_args(base.replace(minute=7)), changed)
+    assert changed and len(env.loads) == 1
+
+
 def _previous_game_unplayed(env, monkeypatch):
     """Make SEA's previous game (week 5) look unplayed in the loaded schedule."""
     from seahawks_ml.stadiums import load_stadiums

@@ -30,7 +30,7 @@ afterwards so CI never has to repeat it.
 
 ## In season (GitHub Actions)
 
-- `predict.yml` — hourly; predicts ~4 days, ~1 day, and ~3 hours before each kickoff,
+- `predict.yml` — every 15 minutes; predicts ~4 days, ~1 day, and 6h–75min before each kickoff,
   records results, and redeploys the dashboard.
 - `retrain.yml` — Tuesdays; refits weights with the locked config (no tuning in CI).
 - `ci.yml` — tests on every push.

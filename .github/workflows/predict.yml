@@ -2,10 +2,12 @@ name: Predict
 
 on:
   schedule:
-    # Hourly during the season (Sep-Feb). The gate exits in seconds unless a run is due; the season
+    # Every 15 minutes during the season (Sep-Feb), off the busy :00/:30 marks. GitHub delays or
+    # drops scheduled runs under load, so frequent checks keep short windows like gameday covered.
+    # The gate exits in seconds unless a run is due; the season
     # simulation (predictions/season_sim.jsonl) runs once per "sim day" (starting 10:00 UTC), attempted on
     # runs that already load data, or at 10/14/18/22 UTC when nothing else is due.
-    - cron: "17 * * 1,2,9,10,11,12 *"
+    - cron: "7,22,37,52 * * 1,2,9,10,11,12 *"
   workflow_dispatch:
     inputs:
       run_type:

@@ -161,11 +161,11 @@ If the forecast isn't available yet (game > 16 days out), the weather feature us
 
 | Workflow | Schedule | Does |
 |---|---|---|
-| `predict.yml` | Hourly cron during the season (Sep–Feb) + manual trigger | A cheap gate step checks the next Seahawks kickoff. If a `midweek`, `final_injury`, or `gameday` run is due and hasn't run yet, it predicts → updates results → builds site → commits → Pages deploys. Otherwise exits in seconds. |
+| `predict.yml` | Cron every 15 minutes during the season (Sep–Feb) + manual trigger | A cheap gate step checks the next Seahawks kickoff. If a `midweek`, `final_injury`, or `gameday` run is due and hasn't run yet, it predicts → updates results → builds site → commits → Pages deploys. Otherwise exits in seconds. |
 | `retrain.yml` | Tuesday weekly during season + manual trigger | Refresh data → rebuild features → refit model with locked hyperparameters → commit model + metrics |
 
 Notes on the gate:
-- GitHub cron can run late or skip runs under load, so each run type has a window (e.g., `gameday` = between 4h and 1.5h before kickoff) and whichever hourly run lands in the window first does it. Records note the actual `predicted_at` time.
+- GitHub cron can run late or skip runs under load, so each run type has a window (e.g., `gameday` = between 6h and 75 min before kickoff) and whichever scheduled run lands in the window first does it. Records note the actual `predicted_at` time.
 - Season-off months: the cron is limited to Sep–Feb, and the gate exits if there's no upcoming game.
 
 ### Compute limits
