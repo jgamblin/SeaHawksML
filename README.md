@@ -30,7 +30,9 @@ afterwards so CI never has to repeat it.
 
 ## In season (GitHub Actions)
 
-- `predict.yml` — every 15 minutes; predicts ~4 days, ~1 day, and 6h–75min before each kickoff,
+- `predict.yml` — scheduled every 15 minutes (GitHub actually fires it every few hours); predicts
+  ~4 days, ~1 day, and 6h–75min before each kickoff. A run landing within 5.5h before the short
+  gameday window waits for it in a follow-on job, so the gameday run isn't missed;
   records results, and redeploys the dashboard.
 - `retrain.yml` — Tuesdays; refits weights with the locked config (no tuning in CI).
 - `ci.yml` — tests on every push.
@@ -47,8 +49,7 @@ season" card scores model vs Vegas vs Elo on those fresh, never-edited predictio
 The live Vegas benchmark uses the spread nflverse has about 6-24 hours before kickoff, which
 is not necessarily the closing line.
 
-Season simulation: runs once per "sim day" (starting 10:00 UTC), attempted on runs that
-already load data or at 10/14/18/22 UTC when nothing else is due. The rest of the regular season is simulated 10,000 times. Completed
+Season simulation: runs once per "sim day" (starting 10:00 UTC), on the first run of that sim day. The rest of the regular season is simulated 10,000 times. Completed
 games keep their results; each remaining game is an independent coin flip weighted by the
 current model's home-win probability (team strength is not resampled). Standings use
 simplified tiebreakers (win %, head-to-head, division %, conference %, coin flip) to pick

@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import polars as pl
 import pytest
 
-from seahawks_ml.pipeline.gate import due_run, next_game, previous_game_ready, previous_kickoff
+from seahawks_ml.pipeline.gate import due_run, gameday_wait, next_game, previous_game_ready, previous_kickoff
 
 SUN_1PM_ET = datetime(2026, 10, 11, 17, 0, tzinfo=UTC)
 THU_820_ET = datetime(2026, 10, 16, 0, 15, tzinfo=UTC)
@@ -76,3 +76,21 @@ def test_previous_game_ready():
     assert not previous_game_ready(*_ready_frames(3, with_epa=False), "SEA", now)
     # no previous game (season opener): nothing to wait for
     assert previous_game_ready(*_ready_frames(None), "SEA", SUN_1PM_ET - timedelta(days=30))
+
+
+MAX_WAIT = timedelta(hours=5, minutes=30)
+
+
+def test_gameday_wait_sleeps_until_window_opens():
+    # window opens 6h before kickoff; wait one extra minute so the gate sees it open
+    assert gameday_wait(SUN_1PM_ET - timedelta(hours=9), SUN_1PM_ET, set(), MAX_WAIT) == timedelta(hours=3, minutes=1)
+
+
+@pytest.mark.parametrize("before,done", [
+    (timedelta(hours=12), set()),          # too far ahead: a later run will handle it
+    (timedelta(hours=5), set()),           # window already open: the normal gate runs it
+    (timedelta(hours=9), {"gameday"}),     # already done
+    (timedelta(hours=-1), set()),          # after kickoff
+])
+def test_gameday_wait_returns_none(before, done):
+    assert gameday_wait(SUN_1PM_ET - before, SUN_1PM_ET, done, MAX_WAIT) is None

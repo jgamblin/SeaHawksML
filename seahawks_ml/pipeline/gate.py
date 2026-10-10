@@ -1,8 +1,10 @@
 """Decide whether a prediction run is due. Cheap: needs only the schedule and history.
 
 Windows are relative to kickoff, so Thursday/Monday/Saturday and international games
-work like Sunday games. Cron runs (every 15 minutes) land inside these windows; the first one in a
-window does the run, later ones see it in history and skip.
+work like Sunday games. Scheduled runs land inside these windows; the first one in a window does
+the run, later ones see it in history and skip. GitHub fires scheduled runs irregularly (every few
+hours in practice), so a run that lands shortly before the short gameday window waits for it
+(`gameday_wait`) instead of relying on a later scheduled run.
 """
 
 from datetime import datetime, timedelta
@@ -16,6 +18,7 @@ RUN_WINDOWS = {
     "gameday": (timedelta(hours=6), timedelta(minutes=75)),
 }
 RESULT_GRACE = timedelta(hours=6)  # wait for the previous game's result before predicting
+WAIT_MARGIN = timedelta(minutes=1)  # sleep slightly past the window opening
 
 
 def team_schedule(games: pl.DataFrame, team: str) -> pl.DataFrame:
@@ -50,3 +53,15 @@ def previous_game_ready(games: pl.DataFrame, team_epa: pl.DataFrame, team: str, 
     if prev["margin"] is None:
         return False
     return team_epa.filter((pl.col("game_id") == prev["game_id"]) & (pl.col("team") == team)).height > 0
+
+
+def gameday_wait(now: datetime, kickoff: datetime, done: set[str], max_wait: timedelta) -> timedelta | None:
+    """How long to sleep so a run can catch the gameday window, or None if it shouldn't wait.
+
+    Only waits when the window hasn't opened yet, opens within `max_wait`, and the gameday run
+    hasn't been logged.
+    """
+    opens = kickoff - RUN_WINDOWS["gameday"][0]
+    if "gameday" in done or now >= opens or opens - now > max_wait:
+        return None
+    return opens - now + WAIT_MARGIN

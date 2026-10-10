@@ -7,6 +7,7 @@ CI (in season):              retrain, predict, build-site
 import argparse
 import json
 import os
+import time
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 
@@ -283,7 +284,7 @@ def _predict(args, changed: list[bool]) -> None:
     )
     from seahawks_ml.pipeline.predict import latest_injury_week, make_prediction, single_game_row
     from seahawks_ml.pipeline.results import new_results
-    from seahawks_ml.pipeline.season_sim import SIM_ONLY_HOURS, has_snapshot_for, season_in_progress
+    from seahawks_ml.pipeline.season_sim import has_snapshot_for, season_in_progress
     from seahawks_ml.stadiums import load_stadiums
 
     now = _now(args)
@@ -317,12 +318,11 @@ def _predict(args, changed: list[bool]) -> None:
             print(f"no run due for {game['game_id']} (kickoff {game['kickoff_utc']:%Y-%m-%d %H:%M} UTC)")
     logged = {r["game_id"] for r in league_log if r["type"] == "league_prediction"}
     league_ids = due_league_games(games, now, logged)
-    # The season simulation runs on any run that loads data, and otherwise (nothing else due) is only
-    # attempted in the first quarter-hour of SIM_ONLY_HOURS, once per sim day, so idle 15-minute
-    # checks do not reload data.
+    # The season simulation runs once per sim day: on any run that loads data, and otherwise on the
+    # first run of the sim day. GitHub fires scheduled runs only every few hours, so no hour gating.
     sim_due = season_in_progress(games, now) and not has_snapshot_for(read_history(SEASON_SIM_PATH), now)
     if run_type is None and not league_ids:
-        if sim_due and now.hour in SIM_ONLY_HOURS and now.minute < 15:
+        if sim_due:
             # nothing else to do: a failure here (e.g. a data download) must not fail the job
             print("season simulation due (none logged today)")
             try:
@@ -410,6 +410,36 @@ def _simulate(now: datetime, games: pl.DataFrame | None = None) -> bool:
     return _run_season_sim(raw.games, frame, model, now, metrics["model_version"])
 
 
+def cmd_wait_for_gameday(args) -> None:
+    """CI: if the Seahawks gameday window opens within --max-hours, sleep until it does.
+
+    GitHub runs scheduled workflows only every few hours, which can miss the ~5h gameday window.
+    A run landing shortly before it waits in-job; the workflow then runs `predict` again.
+    """
+    from datetime import timedelta
+
+    from seahawks_ml.features.base import prepare_games
+    from seahawks_ml.ingest import nflverse
+    from seahawks_ml.pipeline.gate import gameday_wait, next_game
+    from seahawks_ml.pipeline.history import read_history, runs_done
+    from seahawks_ml.stadiums import load_stadiums
+
+    now = _now(args)
+    games = prepare_games(nflverse.load_schedules(), load_stadiums())
+    game = next_game(games, TEAM, now)
+    wait = None
+    if game is not None:
+        done = runs_done(read_history(PREDICTIONS_PATH), game["game_id"])
+        wait = gameday_wait(now, game["kickoff_utc"], done, timedelta(hours=args.max_hours))
+    if wait is None:
+        print("no gameday window to wait for")
+        _set_output("waited", "false")
+        return
+    print(f"waiting {wait} for the {game['game_id']} gameday window")
+    time.sleep(wait.total_seconds())
+    _set_output("waited", "true")
+
+
 def cmd_simulate(args) -> None:
     """Simulate the rest of the season with the current model; log at most one snapshot per UTC day."""
     _simulate(_now(args))
@@ -448,6 +478,9 @@ def main(argv: list[str] | None = None) -> None:
     pr.set_defaults(func=cmd_predict)
     sub.add_parser("simulate", help="simulate the rest of the season; log today's snapshot").set_defaults(
         func=cmd_simulate)
+    wg = sub.add_parser("wait-for-gameday", help="CI: sleep until the gameday window if it opens soon")
+    wg.add_argument("--max-hours", type=float, default=5.5)
+    wg.set_defaults(func=cmd_wait_for_gameday)
     sub.add_parser("build-site", help="render public/").set_defaults(func=cmd_build_site)
     args = parser.parse_args(argv)
     args.func(args)

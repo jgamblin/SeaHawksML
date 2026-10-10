@@ -33,7 +33,6 @@ SIM_KEYS = {
     "games_remaining",
 }
 OPTIONAL_KEYS = {"sim_day", "games_remaining"}  # absent from snapshots logged before the field existed
-SIM_ONLY_HOURS = (10, 14, 18, 22)  # UTC hours at which a run with nothing else to do attempts the sim
 SIM_DAY_OFFSET_HOURS = 10  # a sim day starts at 10:00 UTC, after every US night game has ended
 
 

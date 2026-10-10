@@ -235,7 +235,7 @@ def test_predict_nothing_due_loads_nothing(predict_env):
 def test_predict_runs_daily_season_sim_when_nothing_else_due(predict_env):
     from seahawks_ml.pipeline.history import read_history
     env, changed = predict_env, []
-    now = (env.kick - timedelta(hours=36)).replace(hour=14)  # a SIM_ONLY_HOURS slot
+    now = (env.kick - timedelta(hours=36)).replace(hour=14)  # nothing else due
     cli._predict(_args(now), changed)
     assert changed and len(env.loads) == 1
     assert read_history(env.hist) == [] and read_history(env.league) == []
@@ -248,24 +248,36 @@ def test_predict_runs_daily_season_sim_when_nothing_else_due(predict_env):
     assert not changed and len(env.loads) == 1
 
 
-def test_sim_only_run_waits_for_sim_hours(predict_env):
+def test_sim_only_run_attempts_at_any_hour(predict_env):
+    # GitHub runs scheduled jobs irregularly, so any run without today's snapshot tries the sim
     env, changed = predict_env, []
-    base = (env.kick - timedelta(hours=36)).replace(hour=0)
-    for hour in (9, 11, 13):
-        cli._predict(_args(base.replace(hour=hour)), changed)
-    assert not changed and env.loads == [] and not env.sim.exists()
-    cli._predict(_args(base.replace(hour=10)), changed)
+    now = (env.kick - timedelta(hours=36)).replace(hour=13, minute=37)
+    cli._predict(_args(now), changed)
     assert changed and len(env.loads) == 1
+    changed = []
+    cli._predict(_args(now + timedelta(hours=2)), changed)  # same sim day: quick exit
+    assert not changed and len(env.loads) == 1
 
 
-def test_sim_only_run_only_in_first_quarter_hour(predict_env):
-    env, changed = predict_env, []
-    base = (env.kick - timedelta(hours=36)).replace(hour=10)
-    for minute in (22, 37, 52):  # later 15-minute checks in a sim hour don't reload data
-        cli._predict(_args(base.replace(minute=minute)), changed)
-    assert not changed and env.loads == []
-    cli._predict(_args(base.replace(minute=7)), changed)
-    assert changed and len(env.loads) == 1
+def test_wait_for_gameday_sleeps_until_window(predict_env, monkeypatch, tmp_path):
+    env = predict_env
+    out = tmp_path / "gh_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    slept = []
+    monkeypatch.setattr(cli.time, "sleep", slept.append)
+    cli.cmd_wait_for_gameday(Namespace(now=(env.kick - timedelta(hours=8)).isoformat(), max_hours=5.5))
+    assert slept == [2 * 3600 + 60]
+    assert out.read_text().strip().endswith("waited=true")
+
+
+def test_wait_for_gameday_skips_when_far_away(predict_env, monkeypatch, tmp_path):
+    env = predict_env
+    out = tmp_path / "gh_output"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    slept = []
+    monkeypatch.setattr(cli.time, "sleep", slept.append)
+    cli.cmd_wait_for_gameday(Namespace(now=(env.kick - timedelta(hours=12)).isoformat(), max_hours=5.5))
+    assert slept == [] and out.read_text().strip().endswith("waited=false")
 
 
 def _previous_game_unplayed(env, monkeypatch):

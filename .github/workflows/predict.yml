@@ -2,11 +2,12 @@ name: Predict
 
 on:
   schedule:
-    # Every 15 minutes during the season (Sep-Feb), off the busy :00/:30 marks. GitHub delays or
-    # drops scheduled runs under load, so frequent checks keep short windows like gameday covered.
+    # Asks for every 15 minutes during the season (Sep-Feb), off the busy :00/:30 marks. In practice
+    # GitHub fires these only every few hours, so the `gameday` job below waits in-job for the
+    # short Seahawks gameday window when it opens soon.
     # The gate exits in seconds unless a run is due; the season
-    # simulation (predictions/season_sim.jsonl) runs once per "sim day" (starting 10:00 UTC), attempted on
-    # runs that already load data, or at 10/14/18/22 UTC when nothing else is due.
+    # simulation (predictions/season_sim.jsonl) runs once per "sim day" (starting 10:00 UTC), on the
+    # first run of that sim day.
     - cron: "7,22,37,52 * * 1,2,9,10,11,12 *"
   workflow_dispatch:
     inputs:
@@ -91,8 +92,65 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v5
 
-  notify-failure:
+  # GitHub fires scheduled runs only every few hours, which can miss the ~5h Seahawks gameday
+  # window. If it opens within 5.5h, this job waits for it (after the run above has published),
+  # then predicts and publishes again.
+  gameday:
     needs: [predict, deploy]
+    if: ${{ !cancelled() && github.event_name != 'push' && inputs.publish_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.predict.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --frozen
+      - id: wait
+        run: uv run python -m seahawks_ml.cli wait-for-gameday --max-hours 5.5
+      - id: predict
+        if: steps.wait.outputs.waited == 'true'
+        run: |
+          git pull --rebase
+          uv run python -m seahawks_ml.cli predict
+      - name: Commit gameday prediction
+        if: ${{ !cancelled() && steps.predict.outputs.changed == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add predictions/ data/cache/
+          git diff --cached --quiet || git commit -m "predict: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase
+          git push
+      - name: Build site
+        if: steps.predict.outputs.changed == 'true'
+        run: uv run python -m seahawks_ml.cli build-site
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.predict.outputs.changed == 'true'
+        with:
+          path: public
+          name: github-pages-gameday
+
+  deploy-gameday:
+    needs: gameday
+    if: needs.gameday.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-gameday
+
+  notify-failure:
+    needs: [predict, deploy, gameday, deploy-gameday]
     if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
