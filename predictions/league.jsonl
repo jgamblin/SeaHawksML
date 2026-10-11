@@ -14,3 +14,11 @@
 {"away_team": "SF", "game_id": "2026_05_SF_SEA", "home_team": "SEA", "kickoff_utc": "2026-10-11T20:25:00+00:00", "margin_home": -0.01, "model_version": "20261006-690167d9", "p_elo_home": 0.638, "p_home": 0.4996, "p_vegas_home": 0.5905, "predicted_at": "2026-10-10T21:33:03.850790+00:00", "season": 2026, "type": "league_prediction", "week": 5}
 {"away_team": "BAL", "game_id": "2026_05_BAL_ATL", "home_team": "ATL", "kickoff_utc": "2026-10-12T00:20:00+00:00", "margin_home": 2.84, "model_version": "20261006-690167d9", "p_elo_home": 0.4818, "p_home": 0.5848, "p_vegas_home": 0.5905, "predicted_at": "2026-10-11T00:25:17.413356+00:00", "season": 2026, "type": "league_prediction", "week": 5}
 {"away_score": 17, "game_id": "2026_05_PHI_JAX", "home_score": 19, "margin_home": 2, "recorded_at": "2026-10-11T18:09:55.580735+00:00", "type": "league_result"}
+{"away_score": 7, "game_id": "2026_05_CHI_GB", "home_score": 31, "margin_home": 24, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 31, "game_id": "2026_05_CIN_MIA", "home_score": 24, "margin_home": -7, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 12, "game_id": "2026_05_CLE_NYJ", "home_score": 17, "margin_home": 5, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 26, "game_id": "2026_05_HOU_TEN", "home_score": 3, "margin_home": -23, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 22, "game_id": "2026_05_IND_PIT", "home_score": 34, "margin_home": 12, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 17, "game_id": "2026_05_LV_NE", "home_score": 45, "margin_home": 28, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 23, "game_id": "2026_05_MIN_NO", "home_score": 13, "margin_home": -10, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 27, "game_id": "2026_05_NYG_WAS", "home_score": 27, "margin_home": 0, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
