@@ -22,3 +22,7 @@
 {"away_score": 17, "game_id": "2026_05_LV_NE", "home_score": 45, "margin_home": 28, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
 {"away_score": 23, "game_id": "2026_05_MIN_NO", "home_score": 13, "margin_home": -10, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
 {"away_score": 27, "game_id": "2026_05_NYG_WAS", "home_score": 27, "margin_home": 0, "recorded_at": "2026-10-11T22:06:58.653962+00:00", "type": "league_result"}
+{"away_score": 23, "game_id": "2026_05_DEN_LAC", "home_score": 17, "margin_home": -6, "recorded_at": "2026-10-12T01:17:16.926206+00:00", "type": "league_result"}
+{"away_score": 45, "game_id": "2026_05_DET_ARI", "home_score": 21, "margin_home": -24, "recorded_at": "2026-10-12T01:17:16.926206+00:00", "type": "league_result"}
+{"away_score": 32, "game_id": "2026_05_SF_SEA", "home_score": 29, "margin_home": -3, "recorded_at": "2026-10-12T01:17:16.926206+00:00", "type": "league_result"}
+{"away_team": "BUF", "game_id": "2026_05_BUF_LA", "home_team": "LA", "kickoff_utc": "2026-10-13T00:15:00+00:00", "margin_home": 3.55, "model_version": "20261006-690167d9", "p_elo_home": 0.5149, "p_home": 0.6056, "p_vegas_home": 0.6053, "predicted_at": "2026-10-12T01:17:16.926206+00:00", "season": 2026, "type": "league_prediction", "week": 5}
