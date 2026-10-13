@@ -32,9 +32,11 @@ RATING_GRID = [
     (0.6, 6.0, 2.0, False, True, True),
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
-# Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 7 extra builds):
+# Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 10 extra builds):
 # the pooled home-minus-away modes (counts, and quality-weighted values with a few skill-player
-# shrinkage/scale settings and with flat linemen), plus the per-group modes for reference.
+# shrinkage/scale settings and with flat linemen), plus the per-group modes for reference; then
+# Questionable starters weighted by practice status (on the locked count_diff) and contract-value
+# quality, alone and with Questionable starters.
 _FLAT_LINEMEN = {"round_1": 1.0, "day_2": 1.0, "later": 1.0, "udfa": 1.0}
 AVAILABILITY_GRID = [
     {"mode": "count_diff"},
@@ -44,6 +46,9 @@ AVAILABILITY_GRID = [
     {"mode": "values_pooled", "lineman_quality": _FLAT_LINEMEN, "durability_weight": 0.0},
     {"mode": "groups"},
     {"mode": "values", "prior_opps": 90.0, "quality_scale": 2.0},
+    {"mode": "count_diff", "questionable": True},
+    {"mode": "values_contract"},
+    {"mode": "values_contract", "questionable": True},
 ]
 FORECAST_HORIZON = timedelta(days=16)
 
@@ -128,7 +133,8 @@ def cmd_backtest(args) -> None:
             if ll < best[1]:
                 best = (cand, ll)
         config = best[0]
-        print("stage 0c: injury availability (starters out / pooled diffs / position groups / player values)")
+        print("stage 0c: injury availability (starters out / pooled diffs / position groups / player values /"
+              " questionable / contracts)")
         print(f"  {best[1]:.5f}  {config.availability}")
         feature_trials.append({"stage": "availability", "availability": config.availability.to_dict(),
                                "log_loss": best[1]})

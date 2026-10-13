@@ -93,6 +93,19 @@ def test_old_config_without_availability_means_count(tmp_path):
     assert load_config(tmp_path / "c.json").availability.mode == "count"
 
 
+def test_old_config_without_questionable_keeps_its_mode(tmp_path):
+    import json
+
+    from seahawks_ml.features.availability import AvailabilityParams
+
+    d = ProjectConfig(availability=AvailabilityParams(mode="count_diff")).to_dict()
+    assert d["availability"]["questionable"] is False
+    del d["availability"]["questionable"]
+    (tmp_path / "c.json").write_text(json.dumps(d))
+    avail = load_config(tmp_path / "c.json").availability
+    assert avail.mode == "count_diff" and avail.questionable is False
+
+
 def test_saved_config_lineman_quality_stays_a_json_object(tmp_path):
     import json
 

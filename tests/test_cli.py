@@ -412,8 +412,13 @@ def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
     assert written["saved"].availability == winner
     assert built[-1] == written["saved"]  # the last build is the final frame for the winner
     avail_builds = [c for c in built[:-1] if c.availability.mode != "count"]
-    assert 0 < len(avail_builds) <= 8  # extra feature builds for stage 0c
-    assert {c.availability.mode for c in avail_builds} == {"groups", "values", "count_diff", "values_pooled"}
+    assert 0 < len(avail_builds) <= 11  # extra feature builds for stage 0c
+    assert {c.availability.mode for c in avail_builds} == {"groups", "values", "count_diff", "values_pooled",
+                                                           "values_contract"}
+    # Questionable weighting with the locked count_diff and with contract values; contract values alone
+    assert {(c.availability.mode, c.availability.questionable) for c in avail_builds
+            if c.availability.questionable or c.availability.mode == "values_contract"} == {
+        ("count_diff", True), ("values_contract", False), ("values_contract", True)}
     assert winner in [c.availability for c in avail_builds]  # best previous values setting, for reference
     pooled = {(c.availability.prior_opps, c.availability.quality_scale)
               for c in avail_builds if c.availability.mode == "values_pooled"}
@@ -423,7 +428,9 @@ def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
     assert len(flat) == 1 and flat[0].mode == "values_pooled"
     assert set(dict(flat[0].lineman_quality).values()) == {1.0}
     trials = [t for t in written["feature_trials"] if t["stage"] == "availability"]
-    assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values", "count_diff", "values_pooled"}
+    assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values", "count_diff", "values_pooled",
+                                                           "values_contract"}
+    assert sum(t["availability"]["questionable"] for t in trials) == 2
     assert any(t["availability"] == winner.to_dict() and t["log_loss"] == 0.5 for t in trials)
     assert f"best availability: {winner}" in capsys.readouterr().out
 
