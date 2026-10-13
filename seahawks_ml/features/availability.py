@@ -14,6 +14,11 @@ QUESTIONABLE_FALLBACK when a bucket has fewer than MIN_QUESTIONABLE_CASES such c
 Outputs per team (home_/away_ prefix):
 - `off_out` / `def_out`: snap-share-weighted count of starters listed Out or Doubtful (plus
   p_miss x share for Questionable starters with `questionable`).
+- In mode "values_contract" each missing starter's group weight is snap share x contract quality:
+  apy_cap_pct of his latest contract with 0 < year_signed < the game's season, divided by the median
+  apy_cap_pct of his position group over all contracts signed before that season; with no such
+  contract, DEFAULT_CONTRACT_QUALITY by draft bucket. Clipped to CONTRACT_QUALITY_CLIP. Only
+  contracts signed in earlier seasons are read, so this is known before every game of the season.
 - `out_<group>` for the six position groups (ol, wrte, rb, dl, lb, db): the same weight
   per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In the
   modes "values" and "values_pooled" each missing starter's weight is snap share x quality:
@@ -45,15 +50,16 @@ from seahawks_ml.config import FIRST_SNAP_SEASON
 
 OUT_STATUSES = {"Out", "Doubtful"}
 QUESTIONABLE = "Questionable"
-PRACTICE_BUCKETS = ("dnp", "limited", "full", None)  # ingest.nflverse.practice_bucket values
 # P(a Questionable starter plays 0 snaps) by practice status, used when earlier seasons have
 # fewer than MIN_QUESTIONABLE_CASES Questionable starters in the bucket.
 QUESTIONABLE_FALLBACK = {"dnp": 0.6, "limited": 0.25, "full": 0.05, None: 0.2}
 MIN_QUESTIONABLE_CASES = 50
 STARTER_SHARE = 0.5
 MIN_APPEARANCES = 2
-AVAILABILITY_MODES = ("count", "groups", "values", "count_diff", "values_pooled")
-VALUE_MODES = frozenset({"values", "values_pooled"})  # modes that weight starters by quality
+AVAILABILITY_MODES = ("count", "groups", "values", "count_diff", "values_pooled", "values_contract")
+VALUE_MODES = frozenset({"values", "values_pooled"})  # modes that weight starters by EPA/draft quality
+CONTRACT_MODE = "values_contract"  # weights starters by contract quality
+POOLED_GROUP_MODES = frozenset({"values_pooled", CONTRACT_MODE})  # off/def diffs pooled from the groups
 GROUPS = ("ol", "wrte", "rb", "dl", "lb", "db")
 OFFENSE_GROUPS = frozenset({"ol", "wrte", "rb"})
 # Snap-count positions plus the coarser labels nflverse's players table uses (fallback).
@@ -74,6 +80,13 @@ REPLACEMENT_MIN_OPPS = 20  # targets (carries) for a player-season to count towa
 DURABILITY_GAMES = 8
 
 
+# OverTheCap contract positions that the snap-count labels don't cover
+CONTRACT_POSITION_GROUPS = {**POSITION_GROUPS, **dict.fromkeys(("LT", "LG", "RG", "RT"), "ol"),
+                            **dict.fromkeys(("ED", "IDL"), "dl")}
+# Contract quality (x position-group median) for a starter with no contract signed before the season
+DEFAULT_CONTRACT_QUALITY = {"round_1": 1.0, "day_2": 0.6, "later": 0.5, "udfa": 0.4}
+CONTRACT_QUALITY_CLIP = (0.2, 5.0)
+
 DRAFT_BUCKETS = ("round_1", "day_2", "later", "udfa")
 # (draft bucket, quality) pairs: a tuple so AvailabilityParams stays immutable and hashable
 LinemanQuality = tuple[tuple[str, float], ...]
@@ -87,7 +100,8 @@ class AvailabilityParams:
     mode: "count" - the four off/def snap-share columns; "groups" - six per-position-group
     snap-share columns; "values" - the same six groups weighted by player quality;
     "count_diff" - home minus away of the off/def counts (2 columns); "values_pooled" - quality-weighted
-    out, home minus away, pooled over offense (OL+WRTE+RB) and defense (DL+LB+DB) groups (2 columns).
+    out, home minus away, pooled over offense (OL+WRTE+RB) and defense (DL+LB+DB) groups (2 columns);
+    "values_contract" - the same pooled diffs with each starter weighted by contract quality.
     prior_opps / quality_scale: skill-player (WR/TE, RB) EPA-per-opportunity shrinkage and scale.
     lineman_quality / durability_weight: OL/DL/LB/DB quality from draft bucket and snap durability.
     questionable: also count starters listed Questionable, each weighted by the probability that a
@@ -125,6 +139,11 @@ def position_group(position: str | None) -> str | None:
     Combined snap-count labels such as "C/G" or "DE/L" use the first listed position.
     """
     return POSITION_GROUPS.get(position.split("/")[0]) if position else None
+
+
+def contract_position_group(position: str | None) -> str | None:
+    """Position group of an OverTheCap contract position; None for QB/K/P/LS/unknown."""
+    return CONTRACT_POSITION_GROUPS.get(position) if position else None
 
 
 def draft_bucket(draft_round: int | None) -> str:
@@ -212,6 +231,51 @@ class _SkillHistory:
         k = params.prior_opps
         shrunk = (k * prior + e_rec + e_rush) / (k + t + c) if k + t + c > 0 else prior
         return max(0.0, 1.0 + params.quality_scale * (shrunk - repl))
+
+
+class _ContractQuality:
+    """Leak-free contract quality: a player's latest contract signed in an earlier season over the
+    position-group median of contracts signed in earlier seasons, else a draft-bucket default."""
+
+    def __init__(self, contracts: pl.DataFrame | None, player_info: dict):
+        self._player_info = player_info
+        self._players: dict[str, tuple[list[int], list[float]]] = {}
+        self._groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
+        self._medians: dict[tuple[str, int], float | None] = {}
+        if contracts is None:
+            return
+        rows = contracts.filter((pl.col("year_signed") > 0) & pl.col("apy_cap_pct").is_not_null()
+                                & pl.col("gsis_id").is_not_null()).sort("year_signed", "apy_cap_pct")
+        per_player: dict[str, tuple[list[int], list[float]]] = defaultdict(lambda: ([], []))
+        for r in rows.iter_rows(named=True):
+            years, apys = per_player[r["gsis_id"]]
+            years.append(r["year_signed"])
+            apys.append(r["apy_cap_pct"])
+            group = contract_position_group(r["position"])
+            if group:
+                self._groups[group].append((r["year_signed"], r["apy_cap_pct"]))
+        self._players = dict(per_player)
+
+    def _median(self, group: str, season: int) -> float | None:
+        key = (group, season)
+        if key not in self._medians:
+            vals = [apy for year, apy in self._groups.get(group, ()) if year < season]
+            self._medians[key] = float(np.median(vals)) if vals else None
+        return self._medians[key]
+
+    def __call__(self, gsis: str, group: str, season: int) -> float:
+        q = None
+        if gsis in self._players:
+            years, apys = self._players[gsis]
+            i = bisect_left(years, season)  # contracts signed before the season; same year: highest apy
+            median = self._median(group, season)
+            if i and median:
+                q = apys[i - 1] / median
+        if q is None:
+            info = self._player_info.get(gsis)
+            q = DEFAULT_CONTRACT_QUALITY[draft_bucket(info["draft_round"] if info else None)]
+        lo, hi = CONTRACT_QUALITY_CLIP
+        return min(hi, max(lo, q))
 
 
 class _SnapIndex:
@@ -333,13 +397,15 @@ def compute_availability(
     player_stats: pl.DataFrame | None = None,
     params: AvailabilityParams = AvailabilityParams(),
     lookback: int = 4,
+    contracts: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     player_info = {r["gsis_id"]: r for r in players.iter_rows(named=True)}
+    contract_quality = _ContractQuality(contracts, player_info) if params.mode == CONTRACT_MODE else None
     index = _SnapIndex(games, snaps, players, lookback)
     kickoff = index.kickoff
     team_game_snaps = index.team_game
-    values = params.mode in VALUE_MODES
-    skill = _SkillHistory(player_stats, kickoff) if values else None
+    values = params.mode in VALUE_MODES or params.mode == CONTRACT_MODE
+    skill = _SkillHistory(player_stats, kickoff) if params.mode in VALUE_MODES else None
     reported, out_lists, q_lists = _report_lists(injuries)
     miss_rate = _MissRates(_questionable_counts(games, index, injuries)) if params.questionable else None
 
@@ -354,6 +420,8 @@ def compute_availability(
         return total / len(recent)
 
     def quality(team: str, prior: list[str], gsis: str, group: str, game: dict) -> float:
+        if contract_quality is not None:
+            return contract_quality(gsis, group, game["season"])
         if group in SKILL_STAT_GROUPS:
             return skill.quality(gsis, group, game["season"], game["kickoff_utc"], params)
         info = player_info.get(gsis)

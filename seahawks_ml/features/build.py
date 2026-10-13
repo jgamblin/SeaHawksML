@@ -3,7 +3,13 @@
 import polars as pl
 
 from seahawks_ml.data import RawData
-from seahawks_ml.features.availability import GROUPS, OFFENSE_GROUPS, AvailabilityParams, compute_availability
+from seahawks_ml.features.availability import (
+    GROUPS,
+    OFFENSE_GROUPS,
+    POOLED_GROUP_MODES,
+    AvailabilityParams,
+    compute_availability,
+)
 from seahawks_ml.features.base import team_games
 from seahawks_ml.features.coaching import new_head_coach
 from seahawks_ml.features.columns import FEATURE_COLUMNS, ID_COLUMNS
@@ -50,7 +56,7 @@ def build_features(
         .join(compute_situational(games, stadiums, situational_params), on="game_id")
         .join(compute_season_timing(games), on="game_id")
         .join(compute_availability(games, raw.snaps, raw.injuries, raw.players, raw.player_stats,
-                                   availability_params), on="game_id")
+                                   availability_params, contracts=raw.contracts), on="game_id")
         .join(compute_weather(games, raw.weather), on="game_id")
     )
     # Each availability mode feeds one representation; the other columns are 0.0.
@@ -67,9 +73,9 @@ def build_features(
         **{c: (pl.col(c) if mode == "count" else None) for c in old},
         **{f"out_{g}_diff": (group_diff(g) if mode in ("groups", "values") else None) for g in GROUPS},
         "off_out_diff": (pl.col("home_off_out") - pl.col("away_off_out") if mode == "count_diff"
-                         else pooled(True) if mode == "values_pooled" else None),
+                         else pooled(True) if mode in POOLED_GROUP_MODES else None),
         "def_out_diff": (pl.col("home_def_out") - pl.col("away_def_out") if mode == "count_diff"
-                         else pooled(False) if mode == "values_pooled" else None),
+                         else pooled(False) if mode in POOLED_GROUP_MODES else None),
     }
     frame = frame.with_columns(
         (pl.col("elo_home_pre") - pl.col("elo_away_pre")).alias("elo_diff"),

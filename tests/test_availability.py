@@ -393,3 +393,87 @@ def test_questionable_cases_need_a_starter_and_snap_data():
     # team's week-3 game lost its snaps: its own 10 cases drop (opponent's are kept, its players all
     # appear); week-4 P0 is Out, not Questionable
     assert by_key[(2013, "dnp")] == (160 - 10 - 1, 20)
+
+
+# --- contract value as player quality -------------------------------------------------------
+
+def _contracts(rows):
+    from seahawks_ml.ingest.nflverse import CONTRACTS_SCHEMA
+
+    return pl.DataFrame([dict(zip(("gsis_id", "position", "year_signed", "apy_cap_pct"), r)) for r in rows],
+                        schema=CONTRACTS_SCHEMA)
+
+
+def _contract_row(raw, injuries, contracts, params=AvailabilityParams(mode="values_contract")):
+    game = _week5_game(raw)
+    out = compute_availability(raw.games, raw.snaps, injuries, raw.players, raw.player_stats, params,
+                               contracts=contracts)
+    return out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
+
+
+def test_values_contract_uses_latest_contract_signed_before_the_season_over_group_median():
+    raw = make_raw()
+    game = _week5_game(raw)
+    team = game["home_team"]
+    contracts = _contracts([
+        (f"{team}-P0", "WR", 2012, 0.02), (f"{team}-P0", "WR", 2013, 0.04),
+        (f"{team}-P0", "WR", 2014, 0.5),  # signed in the game's season: not known yet
+        (f"{team}-P0", "WR", 0, 0.9),  # unknown year: skipped
+        ("z1", "TE", 2010, 0.01), ("z2", "WR", 2011, 0.03),
+        ("z3", "WR", 2014, 0.9),  # the game's season: not in the median either
+        ("z4", "QB", 2012, 0.2), ("z5", "LB", 2012, 0.5),  # other groups
+    ])
+    # WR/TE median over contracts signed before 2014: [0.02, 0.04, 0.01, 0.03] -> 0.025
+    row = _contract_row(raw, _home_injuries(game, {0: "Out"}), contracts)
+    assert row["home_out_wrte"] == pytest.approx(0.9 * 0.04 / 0.025)
+    assert row["home_off_out"] == pytest.approx(0.9)  # the plain count stays a snap share
+
+
+def test_values_contract_defaults_by_draft_bucket_without_a_contract():
+    from seahawks_ml.features.availability import DEFAULT_CONTRACT_QUALITY
+
+    assert DEFAULT_CONTRACT_QUALITY == {"round_1": 1.0, "day_2": 0.6, "later": 0.5, "udfa": 0.4}
+    raw = make_raw()
+    game = _week5_game(raw)
+    # P5 round 1, P6 round 2, P7 round 5, P8 undrafted; none has a contract
+    row = _contract_row(raw, _home_injuries(game, {5: "Out", 6: "Out", 7: "Out", 8: "Out"}),
+                        _contracts([("z5", "LB", 2012, 0.5)]))
+    assert row["home_out_lb"] == pytest.approx(0.9 * (1.0 + 0.6 + 0.5 + 0.4))
+    # no contracts table at all: the same defaults
+    row = _contract_row(raw, _home_injuries(game, {5: "Out"}), None)
+    assert row["home_out_lb"] == pytest.approx(0.9)
+
+
+def test_values_contract_quality_is_clipped():
+    raw = make_raw()
+    game = _week5_game(raw)
+    team = game["home_team"]
+    contracts = _contracts([(f"{team}-P0", "WR", 2013, 1.0), (f"{team}-P1", "WR", 2013, 0.0),
+                            *[(f"z{i}", "WR", 2012, 0.01) for i in range(9)]])  # median 0.01
+    row = _contract_row(raw, _home_injuries(game, {0: "Out"}), contracts)
+    assert row["home_out_wrte"] == pytest.approx(0.9 * 5.0)
+    row = _contract_row(raw, _home_injuries(game, {1: "Out"}), contracts)
+    assert row["home_out_wrte"] == pytest.approx(0.9 * 0.2)
+
+
+def test_values_contract_maps_contract_positions_to_groups():
+    """OverTheCap labels (LT/LG/C/RG/RT, ED/IDL, CB/S) map to the snap-count groups for the medians."""
+    from seahawks_ml.features.availability import contract_position_group
+
+    for pos, group in {"LT": "ol", "LG": "ol", "C": "ol", "RG": "ol", "RT": "ol", "WR": "wrte", "TE": "wrte",
+                       "RB": "rb", "FB": "rb", "ED": "dl", "IDL": "dl", "LB": "lb", "CB": "db", "S": "db"}.items():
+        assert contract_position_group(pos) == group, pos
+    for pos in ("QB", "K", "P", "LS", None):
+        assert contract_position_group(pos) is None, pos
+
+
+def test_values_contract_with_questionable():
+    raw = make_raw()
+    game = _week5_game(raw)
+    team = game["home_team"]
+    contracts = _contracts([(f"{team}-P0", "WR", 2013, 0.04), ("z1", "WR", 2012, 0.01)])  # median 0.025
+    inj = _q_injuries(game, {0: ("Questionable", "dnp")})
+    row = _contract_row(raw, inj, contracts, AvailabilityParams(mode="values_contract", questionable=True))
+    assert row["home_out_wrte"] == pytest.approx(0.6 * 0.9 * 0.04 / 0.025)
+    row = _contract_row(raw, inj, contracts)
+    assert row["home_out_wrte"] == 0.0

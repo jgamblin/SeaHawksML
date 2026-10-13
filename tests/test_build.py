@@ -91,7 +91,8 @@ def test_altitude_toggle(stadiums):
 OLD_AVAIL = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]
 GROUP_DIFFS = ["out_ol_diff", "out_wrte_diff", "out_rb_diff", "out_dl_diff", "out_lb_diff", "out_db_diff"]
 POOLED_DIFFS = ["off_out_diff", "def_out_diff"]
-AVAIL_VARIANTS = [AvailabilityParams(mode=m) for m in ("count", "groups", "values", "count_diff", "values_pooled")]
+AVAIL_VARIANTS = [AvailabilityParams(mode=m)
+                  for m in ("count", "groups", "values", "count_diff", "values_pooled", "values_contract")]
 
 
 def test_availability_modes_use_one_representation(stadiums):
@@ -128,7 +129,7 @@ def test_pooled_modes_use_only_the_two_diffs_and_sum_group_diffs(stadiums):
     frames = {p.mode: build_features(raw, stadiums, availability_params=p) for p in AVAIL_VARIANTS}
     unused = {"count": GROUP_DIFFS + POOLED_DIFFS, "groups": OLD_AVAIL + POOLED_DIFFS,
               "values": OLD_AVAIL + POOLED_DIFFS, "count_diff": OLD_AVAIL + GROUP_DIFFS,
-              "values_pooled": OLD_AVAIL + GROUP_DIFFS}
+              "values_pooled": OLD_AVAIL + GROUP_DIFFS, "values_contract": OLD_AVAIL + GROUP_DIFFS}
     for mode, cols in unused.items():
         for c in cols:
             assert (frames[mode][c] == 0.0).all(), (mode, c)
@@ -150,6 +151,17 @@ def test_pooled_modes_use_only_the_two_diffs_and_sum_group_diffs(stadiums):
     j = vp.join(g, on="game_id").filter(pl.col("availability_known") == 1)
     off = j["g_out_ol_diff"] + j["g_out_wrte_diff"] + j["g_out_rb_diff"]
     de = j["g_out_dl_diff"] + j["g_out_lb_diff"] + j["g_out_db_diff"]
+    assert (j["off_out_diff"] - off).abs().max() < 1e-12
+    assert (j["def_out_diff"] - de).abs().max() < 1e-12
+    # values_contract: home minus away of the contract-weighted group sums, pooled
+    vc = frames["values_contract"]
+    for c in POOLED_DIFFS:
+        assert vc[c].abs().sum() > 0 and vc[c].to_list() != cd[c].to_list(), c
+    av = compute_availability(raw.games, raw.snaps, raw.injuries, raw.players, raw.player_stats,
+                              AvailabilityParams(mode="values_contract"), contracts=raw.contracts)
+    j = vc.join(av, on="game_id").filter(pl.col("availability_known") == 1)
+    off = sum(j[f"home_out_{g}"] - j[f"away_out_{g}"] for g in ("ol", "wrte", "rb"))
+    de = sum(j[f"home_out_{g}"] - j[f"away_out_{g}"] for g in ("dl", "lb", "db"))
     assert (j["off_out_diff"] - off).abs().max() < 1e-12
     assert (j["def_out_diff"] - de).abs().max() < 1e-12
 
@@ -182,7 +194,8 @@ def test_no_leakage_special_teams_and_altitude(stadiums, row_index):
 
 
 LEAK_AVAIL_VARIANTS = [*AVAIL_VARIANTS[1:],  # every mode but "count"
-                       AvailabilityParams(mode="count_diff", questionable=True)]
+                       AvailabilityParams(mode="count_diff", questionable=True),
+                       AvailabilityParams(mode="values_contract", questionable=True)]
 
 
 @pytest.mark.parametrize("avail", LEAK_AVAIL_VARIANTS)
