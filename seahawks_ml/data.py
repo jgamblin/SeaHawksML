@@ -32,7 +32,7 @@ class RawData:
         only read their own game's week, so this does not leak into the target game. Weather is
         left alone because a forecast stands in for it at prediction time. Contracts are left
         alone too: features only read contracts with year_signed before the game's season (and
-        position medians over those), which were all signed before any game of that season.
+        position-group percentile distributions over those), which were all signed before any game of that season.
         """
         later = pl.col("kickoff_utc") >= cutoff
         games = self.games.with_columns(
