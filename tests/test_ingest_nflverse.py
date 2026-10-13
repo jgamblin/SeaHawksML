@@ -289,3 +289,60 @@ def test_completed_season_player_stats_failure_propagates(monkeypatch, tmp_path)
     with pytest.raises(RuntimeError):
         nv.load_season_tables([2015], current_season=2016, cache_dir=tmp_path)
     assert not (tmp_path / "player_stats_2015.parquet").exists()
+
+
+def _injuries_raw():
+    return pl.DataFrame({
+        "season": [2015] * 6, "week": [3] * 6, "team": ["STL", "SEA", "SEA", "SEA", "SEA", "SEA"],
+        "gsis_id": [f"00-{i}" for i in range(6)], "full_name": list("ABCDEF"),
+        "position": ["WR"] * 6,
+        "report_status": ["Questionable", "Out", "Questionable", "Doubtful", None, "Note"],
+        "practice_status": ["Did Not Participate In Practice", "Limited Participation in Practice",
+                            "Full Participation in Practice", " ", None, "Note"],
+    })
+
+
+def test_practice_bucket_normalizes_nflverse_values():
+    from seahawks_ml.ingest.nflverse import practice_bucket
+
+    assert practice_bucket("Did Not Participate In Practice") == "dnp"
+    assert practice_bucket("Limited Participation in Practice") == "limited"
+    assert practice_bucket("Full Participation in Practice") == "full"
+    for raw in ("Note", " ", "", None, "\n"):
+        assert practice_bucket(raw) is None
+
+
+def test_injuries_cache_keeps_normalized_practice_status(monkeypatch, tmp_path):
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", lambda s: _pbp())
+    monkeypatch.setattr(nv.nfl, "load_injuries", lambda s: _injuries_raw())
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    out = nv.load_season_tables([2010], current_season=2011, cache_dir=tmp_path)
+    inj = out["injuries"]
+    assert inj.columns == list(nv.INJURIES_SCHEMA)
+    assert inj["practice_status"].to_list() == ["dnp", "limited", "full", None, None, None]
+    assert inj["team"].to_list()[0] == "LA"
+
+
+def test_old_schema_injuries_cache_is_refetched(monkeypatch, tmp_path):
+    import seahawks_ml.ingest.nflverse as nv
+
+    calls = []
+
+    def load_injuries(season):
+        calls.append(season)
+        return _injuries_raw()
+
+    monkeypatch.setattr(nv.nfl, "load_pbp", lambda s: _pbp())
+    monkeypatch.setattr(nv.nfl, "load_injuries", load_injuries)
+    monkeypatch.setattr(nv.nfl, "load_snap_counts", _boom)
+    nv.load_season_tables([2010], current_season=2011, cache_dir=tmp_path)
+    nv.load_season_tables([2010], current_season=2011, cache_dir=tmp_path)
+    assert calls == [2010]  # cached
+    path = tmp_path / "injuries_2010.parquet"
+    pl.read_parquet(path).drop("practice_status").write_parquet(path)  # a cache from before practice status
+    out = nv.load_season_tables([2010], current_season=2011, cache_dir=tmp_path)
+    assert calls == [2010, 2010]
+    assert "practice_status" in pl.read_parquet(path).columns
+    assert out["injuries"]["practice_status"].to_list()[0] == "dnp"

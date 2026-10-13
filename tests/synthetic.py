@@ -44,6 +44,7 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
     split_rng = random.Random(seed + 10_000)  # pass/rush/success split; keeps `rng` draws unchanged
     stat_rng = random.Random(seed + 20_000)  # player stats; keeps `rng` draws unchanged
     st_rng = random.Random(seed + 30_000)  # special teams; keeps the other draws unchanged
+    practice_rng = random.Random(seed + 40_000)  # injury-report practice status; same reason
     strength = {t: rng.gauss(0, 4) for t in TEAMS}
     games, team_epa, qb_games, snaps, injuries, weather = [], [], [], [], [], []
     players, player_stats = [], []
@@ -124,7 +125,8 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
                 if rng.random() < 0.5:
                     injuries.append({"season": season, "week": week, "team": t,
                                      "gsis_id": f"{t}-P{rng.randrange(10)}", "position": "WR",
-                                     "report_status": rng.choice(["Out", "Doubtful", "Questionable"])})
+                                     "report_status": rng.choice(["Out", "Doubtful", "Questionable"]),
+                                     "practice_status": practice_rng.choice(["dnp", "limited", "full", None])})
     return RawData(
         games=pl.DataFrame(games, schema=GAMES_SCHEMA).sort("kickoff_utc", "game_id"),
         team_epa=pl.DataFrame(team_epa, schema=TEAM_EPA_SCHEMA),

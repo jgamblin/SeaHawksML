@@ -31,6 +31,7 @@ QB_GAMES_SCHEMA = {
 INJURIES_SCHEMA = {
     "season": pl.Int64, "week": pl.Int64, "team": pl.Utf8, "gsis_id": pl.Utf8,
     "position": pl.Utf8, "report_status": pl.Utf8,
+    "practice_status": pl.Utf8,  # practice_bucket(): "dnp" | "limited" | "full" | None
 }
 SNAPS_SCHEMA = {
     "game_id": pl.Utf8, "season": pl.Int64, "week": pl.Int64, "team": pl.Utf8,
@@ -154,12 +155,27 @@ def aggregate_qb_games(pbp: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def practice_bucket(status: str | None) -> str | None:
+    """nflverse practice participation -> "dnp" | "limited" | "full"; None for "Note", blanks and nulls."""
+    s = (status or "").strip().lower()
+    if s.startswith("did not"):
+        return "dnp"
+    if s.startswith("limited"):
+        return "limited"
+    if s.startswith("full"):
+        return "full"
+    return None
+
+
 def _cached(
-    path: Path, fetch: Callable[[], pl.DataFrame], refresh: bool, empty_on_error: dict | None = None
+    path: Path, fetch: Callable[[], pl.DataFrame], refresh: bool, empty_on_error: dict | None = None,
+    schema: dict | None = None,
 ) -> pl.DataFrame:
     """Read-through cache. With `empty_on_error` (a schema) a failed fetch yields an
-    empty table that is NOT cached; without it the exception propagates."""
-    if path.exists() and not refresh:
+    empty table that is NOT cached; without it the exception propagates. With `schema`, a
+    cached file lacking any of its columns (written by an older version) is refetched."""
+    outdated = schema is not None and path.exists() and not set(schema) <= set(pl.read_parquet_schema(path))
+    if path.exists() and not refresh and not outdated:
         return pl.read_parquet(path)
     try:
         df = fetch()
@@ -226,7 +242,8 @@ def _fetch_pbp_tables(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
 def _fetch_injuries(season: int) -> pl.DataFrame:
     return (
         nfl.load_injuries(season)
-        .with_columns(normalize_team("team"))
+        .with_columns(normalize_team("team"),
+                      pl.col("practice_status").map_elements(practice_bucket, return_dtype=pl.Utf8))
         .select(list(INJURIES_SCHEMA))
         .cast(INJURIES_SCHEMA)
     )
@@ -261,7 +278,8 @@ def load_season_tables(
 
     The current season is always refetched. A completed season is also refetched when
     any of its cache files was written before `stale_before[season]`, and its
-    play-by-play tables are refetched when the cached team_epa lacks a current column.
+    play-by-play tables are refetched when the cached team_epa lacks a current column (and the
+    injuries when the cached injuries lack one, e.g. practice_status).
     """
     names = ("team_epa", "qb_games", "injuries", "snaps", "player_stats")
     parts: dict[str, list[pl.DataFrame]] = {k: [] for k in names}
@@ -299,6 +317,7 @@ def load_season_tables(
                 lambda s=season: _fetch_injuries(s),
                 refresh,
                 INJURIES_SCHEMA if tolerate else None,
+                schema=INJURIES_SCHEMA,
             ))
         if season >= FIRST_SNAP_SEASON:
             parts["snaps"].append(_cached(
