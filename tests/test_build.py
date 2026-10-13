@@ -5,6 +5,7 @@ from seahawks_ml.features.availability import AvailabilityParams
 from seahawks_ml.features.build import build_features
 from seahawks_ml.features.columns import FEATURE_COLUMNS, ID_COLUMNS
 from seahawks_ml.features.ratings import RatingParams
+from seahawks_ml.features.situational import SituationalParams
 from seahawks_ml.stadiums import load_stadiums
 from tests.synthetic import make_raw
 
@@ -75,6 +76,18 @@ def test_special_teams_toggle(stadiums):
         assert g["st_diff"] == pytest.approx(r[(g["game_id"], g["home_team"])] - r[(g["game_id"], g["away_team"])])
 
 
+def test_altitude_toggle(stadiums):
+    raw = make_raw()
+    assert "away_altitude_gain_km" in FEATURE_COLUMNS
+    off = build_features(raw, stadiums)
+    on = build_features(raw, stadiums, situational_params=SituationalParams(altitude=True))
+    assert (off["away_altitude_gain_km"] == 0.0).all()
+    # visitors climbing to Glendale (PHO00) from the coast
+    at_ari = on.filter(pl.col("home_team") == "ARI")
+    assert (at_ari["away_altitude_gain_km"] > 0.3).all()
+    assert (on.filter(pl.col("away_team") == "ARI")["away_altitude_gain_km"] == 0.0).all()
+
+
 OLD_AVAIL = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]
 GROUP_DIFFS = ["out_ol_diff", "out_wrte_diff", "out_rb_diff", "out_dl_diff", "out_lb_diff", "out_db_diff"]
 POOLED_DIFFS = ["off_out_diff", "def_out_diff"]
@@ -141,11 +154,11 @@ def test_pooled_modes_use_only_the_two_diffs_and_sum_group_diffs(stadiums):
     assert (j["def_out_diff"] - de).abs().max() < 1e-12
 
 
-def _assert_no_leakage(raw, stadiums, target, params, avail):
-    full = build_features(raw, stadiums, params, availability_params=avail).filter(
-        pl.col("game_id") == target["game_id"])
-    cut = build_features(raw.as_of(target["kickoff_utc"]), stadiums, params, availability_params=avail).filter(
-        pl.col("game_id") == target["game_id"])
+def _assert_no_leakage(raw, stadiums, target, params, avail, situational=SituationalParams()):
+    full = build_features(raw, stadiums, params, availability_params=avail,
+                          situational_params=situational).filter(pl.col("game_id") == target["game_id"])
+    cut = build_features(raw.as_of(target["kickoff_utc"]), stadiums, params, availability_params=avail,
+                         situational_params=situational).filter(pl.col("game_id") == target["game_id"])
     for col in FEATURE_COLUMNS:
         assert full[col][0] == pytest.approx(cut[col][0]), col
     return full.row(0, named=True)
@@ -157,6 +170,15 @@ def test_no_leakage_features_match_as_of_kickoff(stadiums, row_index, params):
     """Features for a game must be identical whether or not later data exists."""
     raw = make_raw()
     _assert_no_leakage(raw, stadiums, raw.games.row(row_index, named=True), params, AvailabilityParams())
+
+
+@pytest.mark.parametrize("row_index", [10, 30, 40, 45])
+def test_no_leakage_special_teams_and_altitude(stadiums, row_index):
+    raw = make_raw()
+    row = _assert_no_leakage(raw, stadiums, raw.games.row(row_index, named=True),
+                             RatingParams(0.6, 6.0, 2.0, opponent_adjust=True, special_teams=True),
+                             AvailabilityParams(mode="count_diff"), SituationalParams(altitude=True))
+    assert row["st_diff"] != 0.0
 
 
 @pytest.mark.parametrize("avail", AVAIL_VARIANTS[1:])  # every mode but "count"

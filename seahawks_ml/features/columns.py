@@ -19,7 +19,7 @@ FEATURE_COLUMNS = [
     # situational
     "rest_diff", "home_post_bye", "away_post_bye", "home_short_week", "away_short_week",
     "travel_diff", "home_tz_shift", "away_tz_shift", "home_body_clock", "away_body_clock",
-    "primetime", "div_game",
+    "primetime", "div_game", "away_altitude_gain_km",
     # season timing
     "week_number", "is_final_regular_week", "is_playoff",
     # venue and weather

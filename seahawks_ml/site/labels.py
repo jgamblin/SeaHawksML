@@ -23,6 +23,7 @@ FEATURE_LABELS = {
     "home_short_week": "Home short week", "away_short_week": "Away short week",
     "travel_diff": "Travel gap", "home_tz_shift": "Home time-zone shift", "away_tz_shift": "Away time-zone shift",
     "home_body_clock": "Home body clock", "away_body_clock": "Away body clock", "primetime": "Primetime",
+    "away_altitude_gain_km": "Away team altitude climb",
     "div_game": "Division game", "week_number": "Week of season", "is_final_regular_week": "Final week",
     "is_playoff": "Playoffs", "is_indoor": "Indoors", "temp_f": "Temperature", "wind_mph": "Wind",
     "precip_in": "Precipitation",

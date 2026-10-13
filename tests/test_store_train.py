@@ -56,6 +56,21 @@ def test_special_teams_toggle_round_trips_and_defaults_off(tmp_path):
     assert load_config(tmp_path / "c.json").rating.special_teams is False
 
 
+def test_situational_params_round_trip_and_old_config_loads_off(tmp_path):
+    import json
+
+    from seahawks_ml.features.situational import SituationalParams
+
+    cfg = ProjectConfig(situational=SituationalParams(altitude=True))
+    save_config(cfg, tmp_path / "c.json")
+    loaded = load_config(tmp_path / "c.json")
+    assert loaded == cfg and loaded.fingerprint() != ProjectConfig().fingerprint()
+    d = ProjectConfig().to_dict()
+    del d["situational"]
+    (tmp_path / "c.json").write_text(json.dumps(d))
+    assert load_config(tmp_path / "c.json").situational == SituationalParams(altitude=False)
+
+
 def test_config_round_trip_with_availability(tmp_path):
     from seahawks_ml.features.availability import AvailabilityParams
 

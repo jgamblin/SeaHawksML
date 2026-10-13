@@ -432,10 +432,15 @@ def test_build_passes_availability_params(monkeypatch):
     from seahawks_ml.models.store import ProjectConfig
 
     seen = {}
-    monkeypatch.setattr(build, "build_features", lambda raw, st, r, q, a: seen.update(a=a))
-    cfg = ProjectConfig(availability=AvailabilityParams(mode="groups"))
+    monkeypatch.setattr(build, "build_features", lambda raw, st, r, q, a, s: seen.update(a=a, s=s, r=r))
+    from seahawks_ml.features.ratings import RatingParams
+    from seahawks_ml.features.situational import SituationalParams
+
+    cfg = ProjectConfig(availability=AvailabilityParams(mode="groups"),
+                        rating=RatingParams(special_teams=True), situational=SituationalParams(altitude=True))
     cli._build(None, None, cfg)
     assert seen["a"] == cfg.availability
+    assert seen["s"] == cfg.situational and seen["r"].special_teams
 
 
 def test_sim_only_run_survives_data_load_failure(predict_env, monkeypatch, capsys):

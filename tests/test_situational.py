@@ -5,6 +5,7 @@ import pytest
 
 from seahawks_ml.features.base import GAMES_SCHEMA
 from seahawks_ml.features.situational import (
+    SituationalParams,
     compute_situational,
     haversine_miles,
     team_home_stadiums,
@@ -55,3 +56,29 @@ def test_compute_situational_values():
     assert lon["home_tz_shift"] == pytest.approx(8.0)  # BST vs PDT
     assert out["snf"]["primetime"] == 1 and out["sea"]["primetime"] == 0
     assert out["sea"]["hfa_trend"] == pytest.approx(0.9)
+
+
+def _altitude_games():
+    ko = datetime(2024, 11, 3, 21, 5, tzinfo=UTC)
+    return pl.concat([_games(), pl.DataFrame([
+        _game("den", "DEN", "SEA", "DEN00", ko),
+        _game("sea2", "SEA", "DEN", "SEA00", ko),
+        _game("mex", "ARI", "SF", "MEX00", ko, neutral=True),
+        _game("ari", "ARI", "DEN", "PHO00", ko),
+        _game("sf", "SF", "ARI", "SFO01", ko),
+    ], schema=GAMES_SCHEMA)])
+
+
+def test_away_altitude_gain_km():
+    stadiums = load_stadiums()
+    on = {r["game_id"]: r for r in
+          compute_situational(_altitude_games(), stadiums, SituationalParams(altitude=True)).iter_rows(named=True)}
+    # Seattle visiting Denver climbs 1609 - 5 m
+    assert on["den"]["away_altitude_gain_km"] == pytest.approx((1609 - stadiums["SEA00"].elevation_m) / 1000)
+    assert on["sea2"]["away_altitude_gain_km"] == 0.0  # Denver descending
+    assert on["ari"]["away_altitude_gain_km"] == 0.0
+    # neutral site: SF (home Levi's) climbs to Mexico City
+    assert on["mex"]["away_altitude_gain_km"] == pytest.approx((2240 - stadiums["SFO01"].elevation_m) / 1000)
+    assert on["sf"]["away_altitude_gain_km"] == pytest.approx(0.0)  # ARI at sea level from 331 m
+    off = compute_situational(_altitude_games(), stadiums)
+    assert (off["away_altitude_gain_km"] == 0.0).all()

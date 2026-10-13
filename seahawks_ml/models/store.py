@@ -11,6 +11,7 @@ from seahawks_ml.features.availability import AvailabilityParams
 from seahawks_ml.features.columns import FEATURE_COLUMNS
 from seahawks_ml.features.qb import QBParams
 from seahawks_ml.features.ratings import RatingParams
+from seahawks_ml.features.situational import SituationalParams
 from seahawks_ml.models.pipeline import FittedModel, ModelConfig
 
 CONFIG_PATH = MODELS_DIR / "config.json"
@@ -26,18 +27,20 @@ class ProjectConfig:
     rating: RatingParams = field(default_factory=RatingParams)
     qb: QBParams = field(default_factory=QBParams)
     availability: AvailabilityParams = field(default_factory=AvailabilityParams)
+    situational: SituationalParams = field(default_factory=SituationalParams)
 
     def to_dict(self) -> dict:
         return {"model": self.model.to_dict(), "rating": asdict(self.rating), "qb": asdict(self.qb),
-                "availability": self.availability.to_dict()}
+                "availability": self.availability.to_dict(), "situational": asdict(self.situational)}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectConfig":
         # toggles added later default to off so an old config means what it meant
         rating = {"opponent_adjust": False, "extra_stats": False, "special_teams": False, **d["rating"]}
         availability = {"mode": "count", **d.get("availability", {})}
+        situational = {"altitude": False, **d.get("situational", {})}
         return cls(ModelConfig.from_dict(d["model"]), RatingParams(**rating), QBParams(**d["qb"]),
-                   AvailabilityParams(**availability))
+                   AvailabilityParams(**availability), SituationalParams(**situational))
 
     def fingerprint(self) -> str:
         return hashlib.sha1(json.dumps(self.to_dict(), sort_keys=True).encode()).hexdigest()[:8]

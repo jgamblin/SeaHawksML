@@ -11,7 +11,7 @@ from seahawks_ml.features.elo import compute_elo
 from seahawks_ml.features.qb import QBParams, compute_qb_features
 from seahawks_ml.features.ratings import RATING_COLUMNS, RatingParams, compute_team_ratings
 from seahawks_ml.features.season_timing import compute_season_timing
-from seahawks_ml.features.situational import compute_situational
+from seahawks_ml.features.situational import SituationalParams, compute_situational
 from seahawks_ml.features.weather import compute_weather
 from seahawks_ml.stadiums import Stadium
 
@@ -33,6 +33,7 @@ def build_features(
     rating_params: RatingParams = RatingParams(),
     qb_params: QBParams = QBParams(),
     availability_params: AvailabilityParams = AvailabilityParams(),
+    situational_params: SituationalParams = SituationalParams(),
 ) -> pl.DataFrame:
     games = raw.games
     tg = team_games(games)
@@ -46,7 +47,7 @@ def build_features(
         .join(_home_away(games, ratings, RATING_COLUMNS), on="game_id")
         .join(_home_away(games, coach, ["new_head_coach"]), on="game_id")
         .join(compute_qb_features(games, raw.qb_games, raw.players, qb_params), on="game_id")
-        .join(compute_situational(games, stadiums), on="game_id")
+        .join(compute_situational(games, stadiums, situational_params), on="game_id")
         .join(compute_season_timing(games), on="game_id")
         .join(compute_availability(games, raw.snaps, raw.injuries, raw.players, raw.player_stats,
                                    availability_params), on="game_id")

@@ -1,13 +1,26 @@
-"""Rest, travel, time zones, body clock, primetime and home-field features."""
+"""Rest, travel, time zones, body clock, primetime, home-field and altitude features.
+
+Altitude (`SituationalParams.altitude`, default off -> 0.0): `away_altitude_gain_km` is
+max(0, venue elevation - away team's home-stadium elevation) / 1000, the visiting team
+climbing (about 1.6 for a sea-level team in Denver). The away team's home stadium is the
+same per-season one used for travel.
+"""
 
 import math
 from collections import Counter
+from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
 import polars as pl
 
 from seahawks_ml.features.base import ET
 from seahawks_ml.stadiums import Stadium
+
+
+@dataclass(frozen=True)
+class SituationalParams:
+    altitude: bool = False
+
 
 HFA_TREND_BASE_SEASON = 2015
 NO_CROWD_SEASON = 2020
@@ -42,7 +55,9 @@ def _offset_hours(tz: str, when) -> float:
     return when.astimezone(ZoneInfo(tz)).utcoffset().total_seconds() / 3600
 
 
-def compute_situational(games: pl.DataFrame, stadiums: dict[str, Stadium]) -> pl.DataFrame:
+def compute_situational(
+    games: pl.DataFrame, stadiums: dict[str, Stadium], params: SituationalParams = SituationalParams()
+) -> pl.DataFrame:
     home_of = team_home_stadiums(games)
     rows = []
     for g in games.iter_rows(named=True):
@@ -62,6 +77,8 @@ def compute_situational(games: pl.DataFrame, stadiums: dict[str, Stadium]) -> pl
             row[f"{side}_body_clock"] = local.hour + local.minute / 60
         # nflverse marks Super Bowls neutral even when a participant plays at home
         # (e.g. 2020 TB at TAM00), so home_field=0 there by design.
+        away_base = stadiums[home_of[(g["away_team"], g["season"])]]
+        climb = max(0.0, venue.elevation_m - away_base.elevation_m) / 1000 if params.altitude else 0.0
         home_field = 0 if g["neutral"] else 1
         et = ko.astimezone(ET)
         rows.append(row | {
@@ -72,6 +89,7 @@ def compute_situational(games: pl.DataFrame, stadiums: dict[str, Stadium]) -> pl
             "travel_diff": row["home_travel_miles"] - row["away_travel_miles"],
             "primetime": int(et.hour >= 19),
             "div_game": int(bool(g["div_game"])),
+            "away_altitude_gain_km": climb,
         })
     out = pl.DataFrame(rows)
     return out.drop("home_rest", "away_rest", "home_travel_miles", "away_travel_miles")

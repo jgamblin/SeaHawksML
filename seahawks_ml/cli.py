@@ -74,7 +74,7 @@ def _load(now: datetime, games: pl.DataFrame | None = None):
 def _build(raw, stadiums, config) -> pl.DataFrame:
     from seahawks_ml.features.build import build_features
 
-    return build_features(raw, stadiums, config.rating, config.qb, config.availability)
+    return build_features(raw, stadiums, config.rating, config.qb, config.availability, config.situational)
 
 
 def cmd_features(args) -> None:
