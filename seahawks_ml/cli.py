@@ -32,6 +32,9 @@ RATING_GRID = [
     (0.6, 6.0, 2.0, False, True, True),
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
+# Feature candidates are ordered simplest-first; one must beat the incumbent by more than this to
+# displace it, so a log-loss tie goes to the simpler setting.
+TIE_TOLERANCE = 3e-4
 # Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 10 extra builds):
 # the pooled home-minus-away modes (counts, and quality-weighted values with a few skill-player
 # shrinkage/scale settings and with flat linemen), plus the per-group modes for reference; then
@@ -120,18 +123,21 @@ def cmd_backtest(args) -> None:
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.rating}")
             feature_trials.append({"stage": "rating", "rating": asdict(cand.rating), "log_loss": ll})
-            if best is None or ll < best[1]:
+            special = len(fields) > 5 and fields[5]
+            if best is None or ll < best[1] - (TIE_TOLERANCE if special else 0.0):
                 best = (cand, ll)
         config = best[0]
         print(f"  best rating: {config.rating}")
         print("stage 0b: QB prior strength")
+        qb_best = None
         for prior in QB_PRIOR_GRID:
             cand = replace(config, qb=QBParams(prior_dropbacks=prior))
             ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
             print(f"  {ll:.5f}  {cand.qb}")
             feature_trials.append({"stage": "qb", "qb": asdict(cand.qb), "log_loss": ll})
-            if ll < best[1]:
-                best = (cand, ll)
+            if qb_best is None or ll < qb_best[1] - TIE_TOLERANCE:
+                qb_best = (cand, ll)
+        best = qb_best
         config = best[0]
         print("stage 0c: injury availability (starters out / pooled diffs / position groups / player values /"
               " questionable / contracts)")
@@ -144,7 +150,7 @@ def cmd_backtest(args) -> None:
             print(f"  {ll:.5f}  {cand.availability}")
             feature_trials.append({"stage": "availability", "availability": cand.availability.to_dict(),
                                    "log_loss": ll})
-            if ll < best[1]:
+            if ll < best[1] - TIE_TOLERANCE:
                 best = (cand, ll)
         config = best[0]
         print(f"  best availability: {config.availability}")
@@ -156,7 +162,7 @@ def cmd_backtest(args) -> None:
         ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
         print(f"  {ll:.5f}  {cand.situational}")
         feature_trials.append({"stage": "situational", "situational": asdict(cand.situational), "log_loss": ll})
-        if ll < best[1]:
+        if ll < best[1] - TIE_TOLERANCE:
             best = (cand, ll)
         config = best[0]
         print(f"  best situational: {config.situational}")

@@ -554,3 +554,66 @@ def test_build_site_falls_back_when_schedule_download_fails(monkeypatch, tmp_pat
     cli.cmd_build_site(SimpleNamespace(now="2026-10-10T00:00:00"))
     assert seen["schedule"] is None
     assert "warning: schedule unavailable" in capsys.readouterr().out
+
+
+def _scripted_backtest(monkeypatch, loss):
+    import seahawks_ml.models.backtest as bt
+    import seahawks_ml.models.store as store
+
+    written = {}
+    monkeypatch.setattr(cli, "_load", lambda now: (None, None))
+    monkeypatch.setattr(cli, "_build", lambda raw, stadiums, config: config)
+    monkeypatch.setattr(bt, "walk_forward_log_loss", lambda cfg, model, seasons: loss(cfg))
+    monkeypatch.setattr(bt, "tune", lambda frame, seasons: (frame.model, []))
+    monkeypatch.setattr(bt, "walk_forward", lambda frame, model, seasons: None)
+    monkeypatch.setattr(bt, "score", lambda preds: {})
+    monkeypatch.setattr(bt, "write_json", lambda path, d: written.update(d))
+    monkeypatch.setattr(store, "save_config", lambda cfg: written.update(saved=cfg))
+    cli.cmd_backtest(Namespace(now=None, tune_features=True))
+    return written["saved"]
+
+
+def _base_loss(cfg):
+    return 0.6
+
+
+def test_tie_tolerance_value():
+    assert cli.TIE_TOLERANCE == 3e-4
+
+
+def test_tie_special_teams_needs_margin(monkeypatch):
+    def loss(cfg, gain):
+        return 0.6 - gain if cfg.rating.special_teams else 0.6
+    assert not _scripted_backtest(monkeypatch, lambda c: loss(c, 1e-4)).rating.special_teams
+    assert _scripted_backtest(monkeypatch, lambda c: loss(c, 1e-3)).rating.special_teams
+
+
+def test_tie_plain_shrinkage_stays_strict(monkeypatch):
+    from seahawks_ml.features.ratings import RatingParams
+
+    target = RatingParams(0.5, 4.0, 2.0, True, True)
+    saved = _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-5 if c.rating == target else 0.6)
+    assert saved.rating == target
+
+
+def test_tie_qb_prior_defaults_win_ties(monkeypatch):
+    first = cli.QB_PRIOR_GRID[0]
+    saved = _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-4 if c.qb.prior_dropbacks != first else 0.6)
+    assert saved.qb.prior_dropbacks == first
+    saved = _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-3 if c.qb.prior_dropbacks == cli.QB_PRIOR_GRID[-1]
+                               else 0.6)
+    assert saved.qb.prior_dropbacks == cli.QB_PRIOR_GRID[-1]
+
+
+def test_tie_availability_needs_margin(monkeypatch):
+    saved = _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-4 if c.availability.mode != "count" else 0.6)
+    assert saved.availability.mode == "count"
+    saved = _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-3 if c.availability.mode == "groups" else 0.6)
+    assert saved.availability.mode == "groups"
+
+
+def test_tie_altitude_needs_margin(monkeypatch):
+    assert not _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-4 if c.situational.altitude else 0.6
+                                  ).situational.altitude
+    assert _scripted_backtest(monkeypatch, lambda c: 0.6 - 1e-3 if c.situational.altitude else 0.6
+                              ).situational.altitude
