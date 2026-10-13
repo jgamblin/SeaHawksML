@@ -23,11 +23,13 @@ from seahawks_ml.config import (
     TEAM,
 )
 
-# RatingParams fields: (prior_regression, prior_games, prior_games_new_coach, opponent_adjust, extra_stats).
-# The previous best shrinkage with every toggle combination, plus other shrinkage with both on.
+# RatingParams fields: (prior_regression, prior_games, prior_games_new_coach, opponent_adjust, extra_stats,
+# special_teams). The previous best shrinkage with every toggle combination, plus other shrinkage with both
+# on, plus the locked best (0.6, 6, 2, no opponent adjustment, extra stats) with special teams added.
 RATING_GRID = [
     *[(0.6, 6.0, 2.0, adj, extra) for adj in (False, True) for extra in (False, True)],
     (0.5, 4.0, 2.0, True, True), (0.7, 6.0, 3.0, True, True), (0.6, 4.0, 2.0, True, True),
+    (0.6, 6.0, 2.0, False, True, True),
 ]
 QB_PRIOR_GRID = [150.0, 250.0, 400.0]
 # Stage 0c candidates beyond the default "count" mode (AvailabilityParams keyword arguments; 7 extra builds):
@@ -96,6 +98,7 @@ def cmd_backtest(args) -> None:
     from seahawks_ml.features.availability import AvailabilityParams
     from seahawks_ml.features.qb import QBParams
     from seahawks_ml.features.ratings import RatingParams
+    from seahawks_ml.features.situational import SituationalParams
     from seahawks_ml.models.backtest import score, tune, walk_forward, walk_forward_log_loss, write_json
     from seahawks_ml.models.pipeline import ModelConfig
     from seahawks_ml.models.store import BACKTEST_PATH, ProjectConfig, save_config
@@ -105,7 +108,7 @@ def cmd_backtest(args) -> None:
     config = ProjectConfig()
     feature_trials = []
     if args.tune_features:
-        print("stage 0a: team ratings (shrinkage, opponent adjustment, extra stats)")
+        print("stage 0a: team ratings (shrinkage, opponent adjustment, extra stats, special teams)")
         best = None
         for fields in RATING_GRID:
             cand = replace(config, rating=RatingParams(*fields))
@@ -139,6 +142,18 @@ def cmd_backtest(args) -> None:
                 best = (cand, ll)
         config = best[0]
         print(f"  best availability: {config.availability}")
+        print("stage 0d: altitude (away team climbing)")
+        print(f"  {best[1]:.5f}  {config.situational}")
+        feature_trials.append({"stage": "situational", "situational": asdict(config.situational),
+                               "log_loss": best[1]})
+        cand = replace(config, situational=SituationalParams(altitude=True))
+        ll = walk_forward_log_loss(_build(raw, stadiums, cand), ModelConfig(), seasons)
+        print(f"  {ll:.5f}  {cand.situational}")
+        feature_trials.append({"stage": "situational", "situational": asdict(cand.situational), "log_loss": ll})
+        if ll < best[1]:
+            best = (cand, ll)
+        config = best[0]
+        print(f"  best situational: {config.situational}")
     frame = _build(raw, stadiums, config)
     model_config, trials = tune(frame, seasons)
     config = replace(config, model=model_config)

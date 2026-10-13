@@ -359,7 +359,9 @@ def test_rating_grid_covers_toggles():
     from seahawks_ml.features.ratings import RatingParams
 
     grid = [RatingParams(*g) for g in cli.RATING_GRID]
-    assert len(grid) == len(set(grid)) == 7
+    assert len(grid) == len(set(grid)) == 8
+    # special teams: one extra build on the locked best shrinkage
+    assert [p for p in grid if p.special_teams] == [RatingParams(0.6, 6.0, 2.0, False, True, special_teams=True)]
     for adj in (False, True):
         for extra in (False, True):
             assert RatingParams(0.6, 6.0, 2.0, adj, extra) in grid
@@ -424,6 +426,34 @@ def test_backtest_stage0c_picks_availability_mode(monkeypatch, capsys):
     assert {t["availability"]["mode"] for t in trials} == {"count", "groups", "values", "count_diff", "values_pooled"}
     assert any(t["availability"] == winner.to_dict() and t["log_loss"] == 0.5 for t in trials)
     assert f"best availability: {winner}" in capsys.readouterr().out
+
+
+def test_backtest_stage0d_altitude(monkeypatch, capsys):
+    import seahawks_ml.models.backtest as bt
+    import seahawks_ml.models.store as store
+
+    def run(altitude_wins):
+        written, built = {}, []
+        monkeypatch.setattr(cli, "_load", lambda now: (None, None))
+        monkeypatch.setattr(cli, "_build", lambda raw, stadiums, config: built.append(config) or config)
+        monkeypatch.setattr(bt, "walk_forward_log_loss",
+                            lambda cfg, model, seasons: 0.6 if cfg.situational.altitude == altitude_wins else 0.7)
+        monkeypatch.setattr(bt, "tune", lambda frame, seasons: (frame.model, []))
+        monkeypatch.setattr(bt, "walk_forward", lambda frame, model, seasons: None)
+        monkeypatch.setattr(bt, "score", lambda preds: {})
+        monkeypatch.setattr(bt, "write_json", lambda path, d: written.update(d))
+        monkeypatch.setattr(store, "save_config", lambda cfg: written.update(saved=cfg))
+        cli.cmd_backtest(Namespace(now=None, tune_features=True))
+        return written, built
+
+    written, built = run(True)
+    assert written["saved"].situational.altitude is True
+    assert sum(c.situational.altitude for c in built[:-1]) == 1  # one extra build
+    trials = [t for t in written["feature_trials"] if t["stage"] == "situational"]
+    assert [(t["situational"]["altitude"], t["log_loss"]) for t in trials] == [(False, 0.7), (True, 0.6)]
+    assert "stage 0d" in capsys.readouterr().out
+    written, _ = run(False)
+    assert written["saved"].situational.altitude is False
 
 
 def test_build_passes_availability_params(monkeypatch):
