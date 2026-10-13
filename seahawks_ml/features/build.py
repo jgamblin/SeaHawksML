@@ -76,6 +76,7 @@ def build_features(
         (pl.col("home_def_rating") - pl.col("away_def_rating")).alias("def_rating_diff"),
         *[(pl.col(f"home_{p}_{s}_rating") - pl.col(f"away_{p}_{s}_rating")).alias(f"{p}_{s}_diff")
           for p in ("pass", "rush", "success") for s in ("off", "def")],
+        (pl.col("home_st_rating") - pl.col("away_st_rating")).alias("st_diff"),
         (pl.col("home_qb_epa") - pl.col("away_qb_epa")).alias("qb_epa_diff"),
         (pl.col("home_qb_cpoe") - pl.col("away_qb_cpoe")).alias("qb_cpoe_diff"),
         *[(pl.col(f"{s}_qb_bucket") == b).cast(pl.Int64).alias(f"{s}_qb_{b}")

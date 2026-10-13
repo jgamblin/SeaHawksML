@@ -34,7 +34,7 @@ class ProjectConfig:
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectConfig":
         # toggles added later default to off so an old config means what it meant
-        rating = {"opponent_adjust": False, "extra_stats": False, **d["rating"]}
+        rating = {"opponent_adjust": False, "extra_stats": False, "special_teams": False, **d["rating"]}
         availability = {"mode": "count", **d.get("availability", {})}
         return cls(ModelConfig.from_dict(d["model"]), RatingParams(**rating), QBParams(**d["qb"]),
                    AvailabilityParams(**availability))

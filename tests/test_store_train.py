@@ -43,6 +43,19 @@ def test_old_config_without_rating_toggles_loads_off(tmp_path):
     assert loaded.rating.extra_stats is False
 
 
+def test_special_teams_toggle_round_trips_and_defaults_off(tmp_path):
+    import json
+
+    cfg = ProjectConfig(rating=RatingParams(0.6, 6.0, 2.0, extra_stats=True, special_teams=True))
+    save_config(cfg, tmp_path / "c.json")
+    assert load_config(tmp_path / "c.json") == cfg
+    d = ProjectConfig().to_dict()
+    d["rating"] = {"prior_regression": 0.6, "prior_games": 6.0, "prior_games_new_coach": 2.0,
+                   "opponent_adjust": False, "extra_stats": True}
+    (tmp_path / "c.json").write_text(json.dumps(d))
+    assert load_config(tmp_path / "c.json").rating.special_teams is False
+
+
 def test_config_round_trip_with_availability(tmp_path):
     from seahawks_ml.features.availability import AvailabilityParams
 

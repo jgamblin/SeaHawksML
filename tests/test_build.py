@@ -39,6 +39,7 @@ RATING_VARIANTS = [
     RatingParams(),
     RatingParams(opponent_adjust=True),
     RatingParams(0.5, 4.0, 2.0, opponent_adjust=True, extra_stats=False),
+    RatingParams(0.6, 6.0, 2.0, opponent_adjust=False, extra_stats=True, special_teams=True),
 ]
 
 
@@ -52,6 +53,26 @@ def test_extra_stat_columns_toggle(stadiums):
         assert (off[c] == 0.0).all(), c
         assert on[c].abs().sum() > 0, c
     assert on["off_rating_diff"].to_list() == off["off_rating_diff"].to_list()
+
+
+def test_special_teams_toggle(stadiums):
+    from seahawks_ml.features.base import team_games
+    from seahawks_ml.features.coaching import new_head_coach
+    from seahawks_ml.features.ratings import compute_team_ratings
+
+    raw = make_raw()
+    assert "st_diff" in FEATURE_COLUMNS
+    params = RatingParams(special_teams=True)
+    on = build_features(raw, stadiums, params)
+    off = build_features(raw, stadiums, RatingParams())
+    assert (off["st_diff"] == 0.0).all()
+    assert on["st_diff"].abs().sum() > 0
+    assert on["off_rating_diff"].to_list() == off["off_rating_diff"].to_list()
+    tg = team_games(raw.games)
+    r = {(x["game_id"], x["team"]): x["st_rating"]
+         for x in compute_team_ratings(tg, raw.team_epa, new_head_coach(tg), params).iter_rows(named=True)}
+    for g in on.iter_rows(named=True):
+        assert g["st_diff"] == pytest.approx(r[(g["game_id"], g["home_team"])] - r[(g["game_id"], g["away_team"])])
 
 
 OLD_AVAIL = ["home_off_out", "home_def_out", "away_off_out", "away_def_out"]

@@ -26,10 +26,18 @@ anchor stays unadjusted.
 
 `extra_stats=False` keeps only total EPA/play; the pass/rush/success columns are 0.0.
 A stat whose columns are missing from `team_epa` (e.g. an old cache) is also 0.0.
+
+Special teams (`special_teams=True` -> `st_rating`, else 0.0): a team's value in a game
+is its EPA on field goals / punts / kickoffs / extra points as the possession team minus
+the opponent's (`st_epa_sum` difference). It is a per-game total, not per play, because
+special-teams play counts vary little between games and the net already includes both
+units. It goes through the same prior/blend shrinkage (single side, centered on the
+previous season's league mean, which is ~0 for a net value). It is never opponent-
+adjusted: the per-game net already nets out the opponent's units.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import polars as pl
 
@@ -41,6 +49,7 @@ class RatingParams:
     prior_games_new_coach: float = 2.0
     opponent_adjust: bool = False
     extra_stats: bool = True
+    special_teams: bool = False
 
 
 # output prefix -> (numerator column, denominator column) in team_epa
@@ -50,7 +59,7 @@ STATS = {
     "rush_": ("rush_epa_sum", "rush_plays"),
     "success_": ("success_sum", "plays"),
 }
-RATING_COLUMNS = [f"{p}{side}_rating" for p in STATS for side in ("off", "def")]
+RATING_COLUMNS = [f"{p}{side}_rating" for p in STATS for side in ("off", "def")] + ["st_rating"]
 
 Key = tuple[str, str]  # (game_id, team)
 
@@ -67,6 +76,21 @@ def _per_game(team_epa: pl.DataFrame, num: str, den: str) -> dict[Key, tuple[flo
         allowed = off.get((r["game_id"], r["opponent"]))
         if key in off and allowed is not None:
             out[key] = (off[key], allowed)
+    return out
+
+
+def _special_teams_per_game(team_epa: pl.DataFrame) -> dict[Key, tuple[float, float]]:
+    """(game_id, team) -> (own ST EPA - opponent's ST EPA, 0.0). The second slot is unused."""
+    if "st_epa_sum" not in team_epa.columns:
+        return {}
+    own = {(r["game_id"], r["team"]): r["st_epa_sum"]
+           for r in team_epa.iter_rows(named=True) if r["st_epa_sum"] is not None}
+    out = {}
+    for r in team_epa.iter_rows(named=True):
+        key = (r["game_id"], r["team"])
+        opp = own.get((r["game_id"], r["opponent"]))
+        if key in own and opp is not None:
+            out[key] = (own[key] - opp, 0.0)
     return out
 
 
@@ -152,5 +176,11 @@ def compute_team_ratings(
             off, dfn = ratings.get((row["game_id"], row["team"]), (0.0, 0.0))
             row[f"{prefix}off_rating"] = off
             row[f"{prefix}def_rating"] = dfn
+    st = {}
+    if params.special_teams:
+        st = _stat_ratings(_special_teams_per_game(team_epa), groups, season_of, new_coach,
+                           replace(params, opponent_adjust=False))
+    for row in rows:
+        row["st_rating"] = st.get((row["game_id"], row["team"]), (0.0, 0.0))[0]
     schema = {"game_id": pl.Utf8, "team": pl.Utf8, **{c: pl.Float64 for c in RATING_COLUMNS}}
     return pl.DataFrame(rows, schema=schema)

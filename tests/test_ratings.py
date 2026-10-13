@@ -123,3 +123,39 @@ def test_opponent_adjust_independent_of_row_order():
     a = compute_team_ratings(tg, _with_extras(epa), _flags(tg), params).sort("game_id", "team")
     b = compute_team_ratings(tg.reverse(), _with_extras(epa), _flags(tg), params).sort("game_id", "team")
     assert a.equals(b)
+
+
+def _with_st(epa):
+    # per-game net: a SEA +2 / SF -2; b SEA -1 / SF +1
+    return epa.with_columns(st_epa_sum=pl.Series([3.0, 1.0, 0.0, 1.0]), st_plays=pl.Series([10, 11, 9, 12]))
+
+
+@pytest.mark.parametrize("adjust", [False, True])
+def test_special_teams_rating_nets_opponent_per_game_and_shrinks(adjust):
+    tg, epa = _setup()
+    params = RatingParams(0.5, 4.0, 2.0, opponent_adjust=adjust, special_teams=True)
+    r = _by_key(compute_team_ratings(tg, _with_st(epa), _flags(tg), params))
+    assert r[("a", "SEA")]["st_rating"] == 0.0  # no prior season
+    # 2020 league mean net is 0; SEA prior = 0.5 * 2 = 1.0
+    assert r[("b", "SEA")]["st_rating"] == pytest.approx(1.0)
+    assert r[("b", "SF")]["st_rating"] == pytest.approx(-1.0)
+    # game c blends game b (SEA net -1) per game, not per play; ST is never opponent-adjusted
+    assert r[("c", "SEA")]["st_rating"] == pytest.approx((4 * 1.0 - 1.0) / 5)
+    assert r[("c", "SF")]["st_rating"] == pytest.approx((4 * -1.0 + 1.0) / 5)
+
+
+def test_special_teams_rating_new_coach_k():
+    tg, epa = _setup()
+    params = RatingParams(0.5, 4.0, 1.0, special_teams=True)
+    r = _by_key(compute_team_ratings(tg, _with_st(epa), _flags(tg, 1), params))
+    assert r[("c", "SF")]["st_rating"] == pytest.approx((1 * -1.0 + 1.0) / 2)
+
+
+def test_special_teams_off_or_missing_columns_give_zero():
+    tg, epa = _setup()
+    off = compute_team_ratings(tg, _with_st(epa), _flags(tg), RatingParams(0.5, 4.0, 2.0))
+    missing = compute_team_ratings(tg, epa, _flags(tg), RatingParams(0.5, 4.0, 2.0, special_teams=True))
+    for df in (off, missing):
+        assert (df["st_rating"] == 0.0).all()
+    on = compute_team_ratings(tg, _with_st(epa), _flags(tg), RatingParams(0.5, 4.0, 2.0, special_teams=True))
+    assert on["off_rating"].to_list() == off["off_rating"].to_list()

@@ -6,7 +6,7 @@ FEATURE_COLUMNS = [
     # team strength
     "elo_diff", "off_rating_diff", "def_rating_diff",
     "pass_off_diff", "pass_def_diff", "rush_off_diff", "rush_def_diff",
-    "success_off_diff", "success_def_diff",
+    "success_off_diff", "success_def_diff", "st_diff",
     # quarterback
     "qb_epa_diff", "qb_cpoe_diff",
     "home_qb_round_1", "home_qb_day_2", "away_qb_round_1", "away_qb_day_2",
