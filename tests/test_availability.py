@@ -289,3 +289,107 @@ def test_availability_params_to_dict_keeps_lineman_quality_a_json_object():
     d = AvailabilityParams(mode="values").to_dict()
     assert d["lineman_quality"] == {"round_1": 1.3, "day_2": 1.1, "later": 1.0, "udfa": 0.9}
     assert AvailabilityParams(**d) == AvailabilityParams(mode="values")
+
+
+# --- Questionable starters weighted by practice status ------------------------------------
+
+def _q_injuries(game, rows: dict[int, tuple[str, str | None]]):
+    """Week-5 2014 report: home players {i: (report_status, practice bucket)}; the away team reports
+    a non-starter so its side is known."""
+    team = game["home_team"]
+    out = [{"season": 2014, "week": 5, "team": team, "gsis_id": f"{team}-P{i}", "position": "X",
+            "report_status": st, "practice_status": pr} for i, (st, pr) in rows.items()]
+    out.append({"season": 2014, "week": 5, "team": game["away_team"], "gsis_id": "x", "position": "LB",
+                "report_status": "Questionable", "practice_status": "dnp"})
+    return pl.DataFrame(out, schema=INJURIES_SCHEMA)
+
+
+def test_questionable_is_ignored_by_default():
+    raw = make_raw()
+    inj = _q_injuries(_week5_game(raw), {0: ("Questionable", "dnp"), 1: ("Out", None)})
+    row = _row(raw, inj, AvailabilityParams(mode="count_diff"))
+    assert row["home_off_out"] == pytest.approx(0.9)
+    assert AvailabilityParams().questionable is False
+
+
+def test_questionable_starters_use_fallback_miss_rates_when_history_is_thin():
+    from seahawks_ml.features.availability import QUESTIONABLE_FALLBACK
+
+    assert QUESTIONABLE_FALLBACK == {"dnp": 0.6, "limited": 0.25, "full": 0.05, None: 0.2}
+    raw = make_raw()  # a handful of Questionable reports per season: far below the 50-case minimum
+    inj = _q_injuries(_week5_game(raw), {0: ("Questionable", "dnp"), 1: ("Out", "dnp"), 2: ("Questionable", "full"),
+                                         7: ("Questionable", "limited"), 8: ("Questionable", None)})
+    row = _row(raw, inj, AvailabilityParams(mode="count_diff", questionable=True))
+    assert row["home_off_out"] == pytest.approx(0.9 * (1 + 0.6 + 0.05))
+    assert row["home_def_out"] == pytest.approx(0.9 * (0.25 + 0.2))
+    assert row["away_off_out"] == 0.0 and row["away_def_out"] == 0.0  # "x" is not a starter
+    # the same expected weight flows into the group columns (pooled by values_pooled)
+    row = _row(raw, inj, AvailabilityParams(mode="groups", questionable=True))
+    assert row["home_out_wrte"] == pytest.approx(0.9 * (1 + 0.6 + 0.05))
+    assert row["home_out_lb"] == pytest.approx(0.9 * (0.25 + 0.2))
+
+
+def _questionable_history(raw):
+    """2013 weeks 3-6: every player of every team is a Questionable starter who did not practice.
+    In week 6, P0-P2 have no snap row and P3-P4 played 0 snaps: 20 misses in 160 cases (rate 0.125).
+    2014 reports are the week-5 target game's only."""
+    teams = raw.games["home_team"].unique().to_list()
+    hist = pl.DataFrame([{"season": 2013, "week": w, "team": t, "gsis_id": f"{t}-P{i}", "position": "X",
+                          "report_status": "Questionable", "practice_status": "dnp"}
+                         for w in range(3, 7) for t in teams for i in range(10)], schema=INJURIES_SCHEMA)
+    wk6 = (pl.col("season") == 2013) & (pl.col("week") == 6)
+    pid = pl.col("pfr_player_id").str.slice(-3).cast(pl.Int64)
+    snaps = raw.snaps.filter(~(wk6 & (pid < 3))).with_columns(
+        pl.when(wk6 & pid.is_between(3, 4)).then(0.0).otherwise(pl.col("offense_pct")).alias("offense_pct"))
+    return hist, snaps
+
+
+def test_questionable_miss_rates_estimated_from_earlier_seasons():
+    from seahawks_ml.features.availability import questionable_cases
+
+    raw = make_raw()
+    hist, snaps = _questionable_history(raw)
+    game = _week5_game(raw)
+    inj = pl.concat([hist, _q_injuries(game, {0: ("Questionable", "dnp"), 7: ("Questionable", "limited")})])
+    cases = questionable_cases(raw.games, snaps, inj, raw.players)
+    by_key = {(r["season"], r["practice_status"]): (r["cases"], r["missed"]) for r in cases.iter_rows(named=True)}
+    assert by_key[(2013, "dnp")] == (160, 20)
+    row = _row(raw, inj, AvailabilityParams(mode="count_diff", questionable=True), snaps=snaps)
+    # dnp: 20 / 160 from 2013 (>= 50 cases); limited: no history -> fallback 0.25
+    assert row["home_off_out"] == pytest.approx(0.9 * 0.125)
+    assert row["home_def_out"] == pytest.approx(0.9 * 0.25)
+
+
+def test_questionable_miss_rates_ignore_the_games_own_season():
+    """2013 cases only inform 2014+: a 2013 game still uses the fallback."""
+    raw = make_raw()
+    hist, snaps = _questionable_history(raw)
+    game = raw.games.filter((pl.col("season") == 2013) & (pl.col("week") == 6)).row(0, named=True)
+    out = compute_availability(raw.games, snaps, hist, raw.players, raw.player_stats,
+                               AvailabilityParams(mode="count_diff", questionable=True))
+    row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
+    # wk 2-5 averages: P0-P4 0.9 on offense (5 starters), P5-P9 0.9 on defense
+    assert row["home_off_out"] == pytest.approx(5 * 0.9 * 0.6)
+    assert row["home_def_out"] == pytest.approx(5 * 0.9 * 0.6)
+
+
+def test_questionable_cases_need_a_starter_and_snap_data():
+    from seahawks_ml.features.availability import questionable_cases
+
+    raw = make_raw()
+    hist, snaps = _questionable_history(raw)
+    # a non-starter ("x"), an Out listing and a game without snap data are not cases
+    team = hist["team"][0]
+    extra = pl.DataFrame([
+        {"season": 2013, "week": 4, "team": team, "gsis_id": "x", "position": "X",
+         "report_status": "Questionable", "practice_status": "dnp"},
+        {"season": 2013, "week": 4, "team": team, "gsis_id": f"{team}-P0", "position": "X",
+         "report_status": "Out", "practice_status": "full"},
+    ], schema=INJURIES_SCHEMA)
+    no_wk3 = snaps.filter(~((pl.col("season") == 2013) & (pl.col("week") == 3) & (pl.col("team") == team)))
+    cases = questionable_cases(raw.games, no_wk3, pl.concat([hist, extra]), raw.players)
+    by_key = {(r["season"], r["practice_status"]): (r["cases"], r["missed"]) for r in cases.iter_rows(named=True)}
+    assert (2013, "full") not in by_key
+    # team's week-3 game lost its snaps: its own 10 cases drop (opponent's are kept, its players all
+    # appear); week-4 P0 is Out, not Questionable
+    assert by_key[(2013, "dnp")] == (160 - 10 - 1, 20)

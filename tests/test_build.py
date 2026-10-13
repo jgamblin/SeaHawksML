@@ -181,11 +181,16 @@ def test_no_leakage_special_teams_and_altitude(stadiums, row_index):
     assert row["st_diff"] != 0.0
 
 
-@pytest.mark.parametrize("avail", AVAIL_VARIANTS[1:])  # every mode but "count"
-@pytest.mark.parametrize("row_index", [30, 40, 45])  # snap era (2013+), so availability is known
+LEAK_AVAIL_VARIANTS = [*AVAIL_VARIANTS[1:],  # every mode but "count"
+                       AvailabilityParams(mode="count_diff", questionable=True)]
+
+
+@pytest.mark.parametrize("avail", LEAK_AVAIL_VARIANTS)
+@pytest.mark.parametrize("row_index", [30, 40, 45, 47])  # snap era (2013+), so availability is known
 def test_no_leakage_availability_modes(stadiums, row_index, avail):
     """Same check for the group / player-value features. The tested game's reports are replaced by a
-    starting home WR listed Out (his value depends on his stats before kickoff), so the diff is not zero."""
+    starting home WR listed Out (his value depends on his stats before kickoff) and a starting home WR
+    listed Questionable, so the diff is not zero."""
     from dataclasses import replace
 
     from seahawks_ml.ingest.nflverse import INJURIES_SCHEMA
@@ -196,6 +201,8 @@ def test_no_leakage_availability_modes(stadiums, row_index, avail):
     injected = pl.DataFrame([
         week | {"team": target["home_team"], "gsis_id": f"{target['home_team']}-P0", "position": "WR",
                 "report_status": "Out"},
+        week | {"team": target["home_team"], "gsis_id": f"{target['home_team']}-P1", "position": "WR",
+                "report_status": "Questionable", "practice_status": "limited"},
         week | {"team": target["away_team"], "gsis_id": "x", "position": "LB", "report_status": "Questionable"},
     ], schema=INJURIES_SCHEMA)
     teams = [target["home_team"], target["away_team"]]
@@ -208,6 +215,34 @@ def test_no_leakage_availability_modes(stadiums, row_index, avail):
         assert row["out_wrte_diff"] != 0.0
     else:
         assert row["off_out_diff"] != 0.0
+
+
+@pytest.mark.parametrize("row_index", [40, 45, 47])  # 2014: miss rates come from 2013's cases
+def test_no_leakage_questionable_miss_rates(stadiums, row_index):
+    """Every starter is Questionable every week and some miss games (in 2014 too), so 2014 games use
+    rates estimated from 2013. Rates must not use the game's own season, or truncating later 2014
+    snaps would change them."""
+    import random
+    from dataclasses import replace
+
+    from seahawks_ml.features.availability import questionable_cases
+    from seahawks_ml.ingest.nflverse import INJURIES_SCHEMA
+
+    raw = make_raw()
+    rng = random.Random(7)
+    teams = raw.games["home_team"].unique().to_list()
+    injuries = pl.DataFrame([{"season": s, "week": w, "team": t, "gsis_id": f"{t}-P{i}", "position": "X",
+                              "report_status": "Questionable", "practice_status": rng.choice(["dnp", "limited"])}
+                             for s in (2013, 2014) for w in range(1, 7) for t in teams for i in range(10)],
+                            schema=INJURIES_SCHEMA)
+    snaps = raw.snaps.filter(pl.Series([rng.random() > 0.15 for _ in range(raw.snaps.height)]))
+    raw = replace(raw, injuries=injuries, snaps=snaps)
+    cases = questionable_cases(raw.games, raw.snaps, raw.injuries, raw.players)
+    assert cases.filter(pl.col("season") == 2013)["cases"].min() >= 50
+    assert cases.filter(pl.col("season") == 2014)["missed"].sum() > 0
+    row = _assert_no_leakage(raw, stadiums, raw.games.row(row_index, named=True), RatingParams(),
+                             AvailabilityParams(mode="count_diff", questionable=True))
+    assert row["availability_known"] == 1
 
 
 def test_availability_known_requires_both_sides(stadiums, monkeypatch):

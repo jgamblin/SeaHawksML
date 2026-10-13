@@ -6,8 +6,14 @@ QBs are excluded because the QB features already handle starter changes.
 Null before the first season with snap counts, and null for a team-week with no injury
 report rows at all (the report is not out yet, so availability is unknown, not zero).
 
+With `questionable`, a starter listed Questionable counts too, weighted by p_miss(practice status):
+among Questionable starters with that final practice status (DNP / limited / full / none) in
+seasons strictly before the game's, the share who then played 0 snaps (no snap row, or 0 share);
+QUESTIONABLE_FALLBACK when a bucket has fewer than MIN_QUESTIONABLE_CASES such cases.
+
 Outputs per team (home_/away_ prefix):
-- `off_out` / `def_out`: snap-share-weighted count of starters listed Out or Doubtful.
+- `off_out` / `def_out`: snap-share-weighted count of starters listed Out or Doubtful (plus
+  p_miss x share for Questionable starters with `questionable`).
 - `out_<group>` for the six position groups (ol, wrte, rb, dl, lb, db): the same weight
   per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In the
   modes "values" and "values_pooled" each missing starter's weight is snap share x quality:
@@ -38,6 +44,12 @@ import polars as pl
 from seahawks_ml.config import FIRST_SNAP_SEASON
 
 OUT_STATUSES = {"Out", "Doubtful"}
+QUESTIONABLE = "Questionable"
+PRACTICE_BUCKETS = ("dnp", "limited", "full", None)  # ingest.nflverse.practice_bucket values
+# P(a Questionable starter plays 0 snaps) by practice status, used when earlier seasons have
+# fewer than MIN_QUESTIONABLE_CASES Questionable starters in the bucket.
+QUESTIONABLE_FALLBACK = {"dnp": 0.6, "limited": 0.25, "full": 0.05, None: 0.2}
+MIN_QUESTIONABLE_CASES = 50
 STARTER_SHARE = 0.5
 MIN_APPEARANCES = 2
 AVAILABILITY_MODES = ("count", "groups", "values", "count_diff", "values_pooled")
@@ -78,6 +90,8 @@ class AvailabilityParams:
     out, home minus away, pooled over offense (OL+WRTE+RB) and defense (DL+LB+DB) groups (2 columns).
     prior_opps / quality_scale: skill-player (WR/TE, RB) EPA-per-opportunity shrinkage and scale.
     lineman_quality / durability_weight: OL/DL/LB/DB quality from draft bucket and snap durability.
+    questionable: also count starters listed Questionable, each weighted by the probability that a
+    Questionable starter with his practice status plays 0 snaps (see `questionable_cases`).
     """
 
     mode: str = "count"
@@ -85,6 +99,7 @@ class AvailabilityParams:
     quality_scale: float = 4.0
     lineman_quality: LinemanQuality = DEFAULT_LINEMAN_QUALITY
     durability_weight: float = 0.5
+    questionable: bool = False
 
     def __post_init__(self):
         if self.mode not in AVAILABILITY_MODES:
@@ -199,6 +214,117 @@ class _SkillHistory:
         return max(0.0, 1.0 + params.quality_scale * (shrunk - repl))
 
 
+class _SnapIndex:
+    """Per team-game non-QB snap shares (gsis ids) with each team's games ordered by kickoff."""
+
+    def __init__(self, games: pl.DataFrame, snaps: pl.DataFrame, players: pl.DataFrame, lookback: int):
+        pfr_to_gsis = {r["pfr_id"]: r["gsis_id"] for r in players.iter_rows(named=True) if r["pfr_id"]}
+        self.kickoff = {r["game_id"]: r["kickoff_utc"] for r in games.iter_rows(named=True)}
+        self.lookback = lookback
+        # (team, game) -> [(gsis, offense share, defense share, snap position)]
+        self.team_game: dict[tuple[str, str], list[tuple[str, float, float, str | None]]] = defaultdict(list)
+        for r in snaps.filter(pl.col("position").ne_missing("QB")).iter_rows(named=True):
+            gsis = pfr_to_gsis.get(r["pfr_player_id"])
+            if gsis and r["game_id"] in self.kickoff:
+                self.team_game[(r["team"], r["game_id"])].append(
+                    (gsis, r["offense_pct"] or 0.0, r["defense_pct"] or 0.0, r["position"]))
+        history: dict[str, list[str]] = defaultdict(list)
+        for team, game_id in sorted(self.team_game, key=lambda k: self.kickoff[k[1]]):
+            history[team].append(game_id)
+        self._history = history
+        self._kickoffs = {t: [self.kickoff[g] for g in gids] for t, gids in history.items()}
+
+    def prior(self, team: str, ko) -> list[str]:
+        """The team's games with snap data kicking off before `ko`, oldest first."""
+        return self._history.get(team, [])[:bisect_left(self._kickoffs.get(team, []), ko)]
+
+    def candidates(self, team: str, prior: list[str]) -> dict[str, tuple[float, float, str | None]]:
+        """Players with >= MIN_APPEARANCES in the last `lookback` prior games ->
+        (mean offense share, mean defense share, latest snap position) over those appearances."""
+        shares: dict[str, list[list[float]]] = defaultdict(lambda: [[], []])
+        latest_pos: dict[str, str] = {}
+        for gid in prior[-self.lookback:]:
+            for gsis, off, de, pos in self.team_game[(team, gid)]:
+                shares[gsis][0].append(off)
+                shares[gsis][1].append(de)
+                if pos:
+                    latest_pos[gsis] = pos
+        return {g: (sum(o) / len(o), sum(d) / len(d), latest_pos.get(g))
+                for g, (o, d) in shares.items() if len(o) >= MIN_APPEARANCES}
+
+
+def _report_lists(injuries: pl.DataFrame):
+    """Reported team-weeks, Out/Doubtful sets and Questionable {gsis: practice bucket} per team-week."""
+    reported = {(r["season"], r["week"], r["team"])
+                for r in injuries.select("season", "week", "team").unique().iter_rows(named=True)}
+    out_lists: dict[tuple[int, int, str], set[str]] = defaultdict(set)
+    q_lists: dict[tuple[int, int, str], dict[str, str | None]] = defaultdict(dict)
+    rows = injuries.filter(pl.col("report_status").is_in([*OUT_STATUSES, QUESTIONABLE]))
+    for r in rows.iter_rows(named=True):
+        key = (r["season"], r["week"], r["team"])
+        if r["report_status"] in OUT_STATUSES:
+            out_lists[key].add(r["gsis_id"])
+        else:
+            q_lists[key][r["gsis_id"]] = r.get("practice_status")
+    for key, q in q_lists.items():  # listed Out/Doubtful wins over a Questionable row
+        for gsis in out_lists.get(key, ()):
+            q.pop(gsis, None)
+    return reported, out_lists, q_lists
+
+
+def _questionable_counts(games: pl.DataFrame, index: _SnapIndex, injuries: pl.DataFrame
+                         ) -> dict[tuple[int, str | None], list[int]]:
+    """(season, practice bucket) -> [Questionable starters, of them with 0 snaps in the game].
+
+    A case is a starter (same rule as the features) listed Questionable, not Out/Doubtful, in a
+    team-game with snap data; he missed it when he has no snap row or 0 offense and defense share.
+    """
+    _, _, q_lists = _report_lists(injuries)
+    counts: dict[tuple[int, str | None], list[int]] = defaultdict(lambda: [0, 0])
+    for g in games.filter(pl.col("season") >= FIRST_SNAP_SEASON).iter_rows(named=True):
+        for team in (g["home_team"], g["away_team"]):
+            q = q_lists.get((g["season"], g["week"], team))
+            played = index.team_game.get((team, g["game_id"]))
+            if not q or not played:
+                continue
+            cands = index.candidates(team, index.prior(team, g["kickoff_utc"]))
+            snapped = {gsis for gsis, off, de, _ in played if off + de > 0}
+            for gsis, bucket in q.items():
+                c = cands.get(gsis)
+                if c is None or max(c[0], c[1]) < STARTER_SHARE:
+                    continue
+                n = counts[(g["season"], bucket)]
+                n[0] += 1
+                n[1] += gsis not in snapped
+    return counts
+
+
+def questionable_cases(games: pl.DataFrame, snaps: pl.DataFrame, injuries: pl.DataFrame,
+                       players: pl.DataFrame, lookback: int = 4) -> pl.DataFrame:
+    """Per season and practice bucket: Questionable starters (`cases`) and how many played 0 snaps (`missed`)."""
+    counts = _questionable_counts(games, _SnapIndex(games, snaps, players, lookback), injuries)
+    return pl.DataFrame([{"season": s, "practice_status": b, "cases": n, "missed": m}
+                         for (s, b), (n, m) in sorted(counts.items(), key=lambda kv: (kv[0][0], str(kv[0][1])))],
+                        schema={"season": pl.Int64, "practice_status": pl.Utf8, "cases": pl.Int64,
+                                "missed": pl.Int64})
+
+
+class _MissRates:
+    """Leak-free P(0 snaps | Questionable starter, practice bucket) from seasons before the game's."""
+
+    def __init__(self, counts: dict[tuple[int, str | None], list[int]]):
+        self._counts = counts
+        self._cache: dict[tuple[int, str | None], float] = {}
+
+    def __call__(self, season: int, bucket: str | None) -> float:
+        key = (season, bucket)
+        if key not in self._cache:
+            n = sum(c[0] for (s, b), c in self._counts.items() if s < season and b == bucket)
+            m = sum(c[1] for (s, b), c in self._counts.items() if s < season and b == bucket)
+            self._cache[key] = m / n if n >= MIN_QUESTIONABLE_CASES else QUESTIONABLE_FALLBACK.get(bucket, 0.2)
+        return self._cache[key]
+
+
 def compute_availability(
     games: pl.DataFrame,
     snaps: pl.DataFrame,
@@ -208,29 +334,14 @@ def compute_availability(
     params: AvailabilityParams = AvailabilityParams(),
     lookback: int = 4,
 ) -> pl.DataFrame:
-    pfr_to_gsis = {r["pfr_id"]: r["gsis_id"] for r in players.iter_rows(named=True) if r["pfr_id"]}
     player_info = {r["gsis_id"]: r for r in players.iter_rows(named=True)}
-    kickoff = {r["game_id"]: r["kickoff_utc"] for r in games.iter_rows(named=True)}
+    index = _SnapIndex(games, snaps, players, lookback)
+    kickoff = index.kickoff
+    team_game_snaps = index.team_game
     values = params.mode in VALUE_MODES
     skill = _SkillHistory(player_stats, kickoff) if values else None
-
-    # (team, game) -> [(gsis, offense share, defense share, snap position)]
-    team_game_snaps: dict[tuple[str, str], list[tuple[str, float, float, str | None]]] = defaultdict(list)
-    for r in snaps.filter(pl.col("position").ne_missing("QB")).iter_rows(named=True):
-        gsis = pfr_to_gsis.get(r["pfr_player_id"])
-        if gsis and r["game_id"] in kickoff:
-            team_game_snaps[(r["team"], r["game_id"])].append(
-                (gsis, r["offense_pct"] or 0.0, r["defense_pct"] or 0.0, r["position"]))
-    team_history: dict[str, list[str]] = defaultdict(list)
-    for team, game_id in sorted(team_game_snaps, key=lambda k: kickoff[k[1]]):
-        team_history[team].append(game_id)
-    team_kickoffs = {t: [kickoff[g] for g in gids] for t, gids in team_history.items()}
-
-    reported = {(r["season"], r["week"], r["team"])
-                for r in injuries.select("season", "week", "team").unique().iter_rows(named=True)}
-    out_lists: dict[tuple[int, int, str], set[str]] = defaultdict(set)
-    for r in injuries.filter(pl.col("report_status").is_in(list(OUT_STATUSES))).iter_rows(named=True):
-        out_lists[(r["season"], r["week"], r["team"])].add(r["gsis_id"])
+    reported, out_lists, q_lists = _report_lists(injuries)
+    miss_rate = _MissRates(_questionable_counts(games, index, injuries)) if params.questionable else None
 
     def durability(team: str, prior: list[str], gsis: str, offense: bool) -> float:
         recent = prior[-DURABILITY_GAMES:]
@@ -253,38 +364,34 @@ def compute_availability(
     def team_out(team: str, game: dict) -> tuple[float, float, dict[str, float]] | None:
         if game["season"] < FIRST_SNAP_SEASON:
             return None
-        if (game["season"], game["week"], team) not in reported:
+        key = (game["season"], game["week"], team)
+        if key not in reported:
             return None
-        prior = team_history.get(team, [])[:bisect_left(team_kickoffs.get(team, []), game["kickoff_utc"])]
-        recent = prior[-lookback:]
-        if not recent:
+        prior = index.prior(team, game["kickoff_utc"])
+        if not prior:
             return None
-        shares: dict[str, list[list[float]]] = defaultdict(lambda: [[], []])
-        latest_pos: dict[str, str] = {}
-        for gid in recent:
-            for gsis, off, de, pos in team_game_snaps[(team, gid)]:
-                shares[gsis][0].append(off)
-                shares[gsis][1].append(de)
-                if pos:
-                    latest_pos[gsis] = pos
-        out_set = out_lists.get((game["season"], game["week"], team), set())
+        out_set = out_lists.get(key, set())
+        q_set = q_lists.get(key, {}) if params.questionable else {}
         off_out = def_out = 0.0
         groups = dict.fromkeys(GROUPS, 0.0)
-        for gsis, (offs, defs) in shares.items():
-            if gsis not in out_set or len(offs) < MIN_APPEARANCES:
+        for gsis, (off_avg, def_avg, pos) in index.candidates(team, prior).items():
+            if gsis in out_set:
+                weight = 1.0
+            elif gsis in q_set:
+                weight = miss_rate(game["season"], q_set[gsis])
+            else:
                 continue
-            off_avg, def_avg = sum(offs) / len(offs), sum(defs) / len(defs)
             if off_avg >= STARTER_SHARE:
-                off_out += off_avg
+                off_out += weight * off_avg
             if def_avg >= STARTER_SHARE:
-                def_out += def_avg
+                def_out += weight * def_avg
             info = player_info.get(gsis)
-            group = position_group(latest_pos.get(gsis)) or position_group(info["position"] if info else None)
+            group = position_group(pos) or position_group(info["position"] if info else None)
             if group is None:
                 continue
             share = off_avg if group in OFFENSE_GROUPS else def_avg
             if share >= STARTER_SHARE:
-                groups[group] += share * (quality(team, prior, gsis, group, game) if values else 1.0)
+                groups[group] += weight * share * (quality(team, prior, gsis, group, game) if values else 1.0)
         return off_out, def_out, groups
 
     rows = []
