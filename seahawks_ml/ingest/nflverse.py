@@ -6,7 +6,7 @@ refreshed on every run. Play-by-play is aggregated immediately so the full
 """
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import nflreadpy as nfl
@@ -59,6 +59,10 @@ PLAYERS_SCHEMA = {
     "gsis_id": pl.Utf8, "pfr_id": pl.Utf8, "position": pl.Utf8,
     "draft_round": pl.Int64, "rookie_season": pl.Int64,
 }
+
+# One row per contract (OverTheCap via nflverse); apy_cap_pct = average per year / cap at signing.
+CONTRACTS_SCHEMA = {"gsis_id": pl.Utf8, "position": pl.Utf8, "year_signed": pl.Int64, "apy_cap_pct": pl.Float64}
+CONTRACTS_MAX_AGE = timedelta(days=7)
 
 
 # Computed 2026-10-06: 6,770 fumble plays, per-season means ranged -2.57 to -2.76.
@@ -232,6 +236,37 @@ def load_players() -> pl.DataFrame:
         .cast(PLAYERS_SCHEMA)
         .filter(pl.col("gsis_id").is_not_null())
     )
+
+
+def _fetch_contracts() -> pl.DataFrame:
+    return (
+        nfl.load_contracts()
+        .select(list(CONTRACTS_SCHEMA))
+        .cast(CONTRACTS_SCHEMA)
+        .filter(pl.col("gsis_id").is_not_null())
+    )
+
+
+def load_contracts(cache_dir: Path = CACHE_DIR, max_age: timedelta = CONTRACTS_MAX_AGE) -> pl.DataFrame:
+    """Player contracts (CONTRACTS_SCHEMA) from one cache file, refetched when older than `max_age`
+    or missing a column. A failed fetch falls back to the stale cache, else an empty table (not cached).
+    Rows with year_signed <= 0 (unknown) are kept; the feature code skips them."""
+    path = cache_dir / "contracts.parquet"
+    if path.exists():
+        age = datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+        if age < max_age and set(CONTRACTS_SCHEMA) <= set(pl.read_parquet_schema(path)):
+            return pl.read_parquet(path).select(list(CONTRACTS_SCHEMA))
+    try:
+        df = _fetch_contracts()
+    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
+        if path.exists() and set(CONTRACTS_SCHEMA) <= set(pl.read_parquet_schema(path)):
+            print(f"warning: nflverse contracts fetch failed ({exc}); using stale cache")
+            return pl.read_parquet(path).select(list(CONTRACTS_SCHEMA))
+        print(f"warning: nflverse contracts fetch failed ({exc}); using empty table")
+        return pl.DataFrame(schema=CONTRACTS_SCHEMA)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    df.write_parquet(path)
+    return df
 
 
 def _fetch_pbp_tables(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:

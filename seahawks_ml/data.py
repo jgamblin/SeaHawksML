@@ -20,6 +20,7 @@ class RawData:
     players: pl.DataFrame  # ingest.nflverse.PLAYERS_SCHEMA
     weather: pl.DataFrame  # ingest.weather.WEATHER_SCHEMA
     player_stats: pl.DataFrame  # ingest.nflverse.PLAYER_STATS_SCHEMA
+    contracts: pl.DataFrame  # ingest.nflverse.CONTRACTS_SCHEMA
 
     def as_of(self, cutoff: datetime) -> "RawData":
         """Drop everything not knowable before `cutoff`.
@@ -29,7 +30,9 @@ class RawData:
         earliest kickoff is before cutoff + 1 day, so a game's own final report survives.
         That can include other teams' later reports for the same week; per-game features
         only read their own game's week, so this does not leak into the target game. Weather is
-        left alone because a forecast stands in for it at prediction time.
+        left alone because a forecast stands in for it at prediction time. Contracts are left
+        alone too: features only read contracts with year_signed before the game's season (and
+        position medians over those), which were all signed before any game of that season.
         """
         later = pl.col("kickoff_utc") >= cutoff
         games = self.games.with_columns(
@@ -82,4 +85,5 @@ def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | 
         players=nflverse.load_players(),
         weather=weather.update_archive_cache(games, stadiums, now),
         player_stats=tables["player_stats"],
+        contracts=nflverse.load_contracts(),
     )

@@ -4,6 +4,8 @@ Four NFC West teams play a 6-week double round robin each season. Team strength,
 EPA, QB stats, snaps, injuries, player stats and weather are random but internally consistent.
 
 Each team has 10 non-QB players: P0-P3 WR, P4 RB (offense) and P5-P9 LB (defense).
+Contracts: P3 and P8 have none (draft-bucket default); the others have one or two, signed 2009-2014,
+plus an unknown-year (year_signed 0) row for P0.
 """
 
 import random
@@ -14,6 +16,7 @@ import polars as pl
 from seahawks_ml.data import RawData
 from seahawks_ml.features.base import GAMES_SCHEMA
 from seahawks_ml.ingest.nflverse import (
+    CONTRACTS_SCHEMA,
     INJURIES_SCHEMA,
     PLAYER_STATS_SCHEMA,
     PLAYERS_SCHEMA,
@@ -45,6 +48,7 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
     stat_rng = random.Random(seed + 20_000)  # player stats; keeps `rng` draws unchanged
     st_rng = random.Random(seed + 30_000)  # special teams; keeps the other draws unchanged
     practice_rng = random.Random(seed + 40_000)  # injury-report practice status; same reason
+    contract_rng = random.Random(seed + 50_000)  # contracts; same reason
     strength = {t: rng.gauss(0, 4) for t in TEAMS}
     games, team_epa, qb_games, snaps, injuries, weather = [], [], [], [], [], []
     players, player_stats = [], []
@@ -56,6 +60,16 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
         for i in range(10):
             players.append({"gsis_id": f"{t}-P{i}", "pfr_id": f"{t}P{i:03d}", "position": _position(i),
                             "draft_round": DEF_DRAFT_ROUND.get(i, 2), "rookie_season": 2010})
+    contracts = []
+    for t in TEAMS:
+        contracts.append({"gsis_id": f"{t}-QB1", "position": "QB", "year_signed": 2010, "apy_cap_pct": 0.1})
+        contracts.append({"gsis_id": f"{t}-P0", "position": "WR", "year_signed": 0, "apy_cap_pct": 0.3})
+        for i in (0, 1, 2, 4, 5, 6, 7, 9):
+            pos = {"WR": "WR", "RB": "RB", "LB": "LB" if i != 6 else "ED"}[_position(i)]
+            for _ in range(contract_rng.choice([1, 2])):
+                contracts.append({"gsis_id": f"{t}-P{i}", "position": pos,
+                                  "year_signed": contract_rng.randint(2009, 2014),
+                                  "apy_cap_pct": round(contract_rng.uniform(0.002, 0.06), 3)})
     skill = {(t, i): stat_rng.gauss(0, 0.2) for t in TEAMS for i in range(5)}  # true EPA/opportunity
     last_season = max(seasons)
     for season in seasons:
@@ -136,6 +150,7 @@ def make_raw(seasons=(2011, 2012, 2013, 2014), seed: int = 0, unplayed_last_week
         players=pl.DataFrame(players, schema=PLAYERS_SCHEMA),
         weather=pl.DataFrame(weather, schema=WEATHER_SCHEMA).unique(["stadium_id", "time_utc"]),
         player_stats=pl.DataFrame(player_stats, schema=PLAYER_STATS_SCHEMA),
+        contracts=pl.DataFrame(contracts, schema=CONTRACTS_SCHEMA),
     )
 
 

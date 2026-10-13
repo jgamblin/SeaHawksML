@@ -346,3 +346,59 @@ def test_old_schema_injuries_cache_is_refetched(monkeypatch, tmp_path):
     assert calls == [2010, 2010]
     assert "practice_status" in pl.read_parquet(path).columns
     assert out["injuries"]["practice_status"].to_list()[0] == "dnp"
+
+
+def _contracts_raw():
+    return pl.DataFrame({
+        "player": ["A", "B", "C", "D"], "position": ["WR", "LT", "ED", "QB"], "team": ["SEA"] * 4,
+        "is_active": [True] * 4, "year_signed": [2019, 0, 2021, 2022], "years": [4, 1, 2, 5],
+        "value": [1.0] * 4, "apy": [1.0] * 4, "guaranteed": [1.0] * 4,
+        "apy_cap_pct": [0.05, 0.004, 0.01, 0.2], "gsis_id": ["00-1", "00-2", None, "00-4"],
+    }).with_columns(pl.col("year_signed").cast(pl.Int32))
+
+
+def test_contracts_cached_and_refreshed_after_a_week(monkeypatch, tmp_path):
+    import os
+    import time
+
+    import seahawks_ml.ingest.nflverse as nv
+
+    calls = []
+
+    def load_contracts():
+        calls.append(1)
+        return _contracts_raw()
+
+    monkeypatch.setattr(nv.nfl, "load_contracts", load_contracts)
+    out = nv.load_contracts(cache_dir=tmp_path)
+    assert out.columns == list(nv.CONTRACTS_SCHEMA)
+    assert out["gsis_id"].to_list() == ["00-1", "00-2", "00-4"]  # null gsis ids dropped
+    assert (tmp_path / "contracts.parquet").exists()
+    nv.load_contracts(cache_dir=tmp_path)
+    assert len(calls) == 1  # fresh cache
+    old = time.time() - 8 * 86400
+    os.utime(tmp_path / "contracts.parquet", (old, old))
+    nv.load_contracts(cache_dir=tmp_path)
+    assert len(calls) == 2  # older than 7 days
+    pl.read_parquet(tmp_path / "contracts.parquet").drop("apy_cap_pct").write_parquet(tmp_path / "contracts.parquet")
+    out = nv.load_contracts(cache_dir=tmp_path)
+    assert len(calls) == 3 and out.columns == list(nv.CONTRACTS_SCHEMA)  # missing column
+
+
+def test_contracts_fetch_failure_falls_back_to_stale_cache_or_empty(monkeypatch, tmp_path, capsys):
+    import os
+    import time
+
+    import seahawks_ml.ingest.nflverse as nv
+
+    monkeypatch.setattr(nv.nfl, "load_contracts", _boom)
+    out = nv.load_contracts(cache_dir=tmp_path)
+    assert out.height == 0 and out.columns == list(nv.CONTRACTS_SCHEMA)
+    assert not (tmp_path / "contracts.parquet").exists()
+    assert "warning" in capsys.readouterr().out
+    monkeypatch.setattr(nv.nfl, "load_contracts", _contracts_raw)
+    nv.load_contracts(cache_dir=tmp_path)
+    old = time.time() - 8 * 86400
+    os.utime(tmp_path / "contracts.parquet", (old, old))
+    monkeypatch.setattr(nv.nfl, "load_contracts", _boom)
+    assert nv.load_contracts(cache_dir=tmp_path).height == 3

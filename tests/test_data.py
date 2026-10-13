@@ -35,10 +35,19 @@ def test_load_raw_reuses_supplied_games(monkeypatch):
         "team_epa": raw.team_epa, "qb_games": raw.qb_games, "injuries": raw.injuries, "snaps": raw.snaps,
         "player_stats": raw.player_stats})
     monkeypatch.setattr(nflverse, "load_players", lambda: raw.players)
+    monkeypatch.setattr(nflverse, "load_contracts", lambda: raw.contracts)
     monkeypatch.setattr(weather, "update_archive_cache", lambda games, stadiums, now: raw.weather)
     loaded = load_raw(load_stadiums(), raw.games["kickoff_utc"].max(), raw.games)
     assert loaded.games.equals(raw.games)
     assert loaded.player_stats.equals(raw.player_stats)
+    assert loaded.contracts.equals(raw.contracts)
+
+
+def test_as_of_keeps_contracts():
+    """Contracts are selected by year_signed < the game's season, so as_of needs no truncation."""
+    raw = make_raw()
+    cut = raw.as_of(raw.games["kickoff_utc"][20])
+    assert raw.contracts.height > 0 and cut.contracts.equals(raw.contracts)
 
 
 def test_synthetic_player_stats_match_snap_players():
