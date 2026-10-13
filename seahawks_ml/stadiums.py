@@ -1,6 +1,7 @@
 """Stadium reference data (hand-maintained in data/stadiums.csv)."""
 
 import csv
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,7 @@ class Stadium:
     lon: float
     tz: str
     roof_default: str
+    elevation_m: float
 
 
 def load_stadiums(path: Path = STADIUMS_CSV) -> dict[str, Stadium]:
@@ -27,6 +29,12 @@ def load_stadiums(path: Path = STADIUMS_CSV) -> dict[str, Stadium]:
     for r in rows:
         if r["roof_default"] not in ROOF_DEFAULTS:
             raise ValueError(f"{r['stadium_id']}: bad roof_default {r['roof_default']!r}")
+        try:
+            elevation = float(r.get("elevation_m") or "")
+            if not math.isfinite(elevation):
+                raise ValueError
+        except ValueError:
+            raise ValueError(f"{r['stadium_id']}: bad elevation_m {r.get('elevation_m')!r}") from None
         stadiums[r["stadium_id"]] = Stadium(
             stadium_id=r["stadium_id"],
             name=r["name"],
@@ -34,6 +42,7 @@ def load_stadiums(path: Path = STADIUMS_CSV) -> dict[str, Stadium]:
             lon=float(r["lon"]),
             tz=r["tz"],
             roof_default=r["roof_default"],
+            elevation_m=elevation,
         )
     return stadiums
 
