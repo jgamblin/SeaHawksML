@@ -319,9 +319,11 @@ class _SnapIndex:
 
 
 def _report_lists(injuries: pl.DataFrame):
-    """Reported team-weeks, Out/Doubtful sets and Questionable {gsis: practice bucket} per team-week."""
+    """Reported team-weeks (at least one row with a game-status designation; practice-only rows from
+    early in the week do not count), Out/Doubtful sets and Questionable {gsis: practice bucket} per team-week."""
     reported = {(r["season"], r["week"], r["team"])
-                for r in injuries.select("season", "week", "team").unique().iter_rows(named=True)}
+                for r in injuries.filter(pl.col("report_status").is_not_null())
+                .select("season", "week", "team").unique().iter_rows(named=True)}
     out_lists: dict[tuple[int, int, str], set[str]] = defaultdict(set)
     q_lists: dict[tuple[int, int, str], dict[str, str | None]] = defaultdict(dict)
     rows = injuries.filter(pl.col("report_status").is_in([*OUT_STATUSES, QUESTIONABLE]))

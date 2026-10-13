@@ -62,6 +62,22 @@ def test_no_injury_report_rows_means_unknown_not_zero():
     assert row["away_off_out"] is not None
 
 
+def test_practice_only_rows_do_not_make_a_team_week_reported():
+    raw = make_raw()
+    game = raw.games.filter((pl.col("season") == 2014) & (pl.col("week") == 5)).row(0, named=True)
+    home, away = game["home_team"], game["away_team"]
+    injuries = pl.DataFrame([
+        {"season": 2014, "week": 5, "team": home, "gsis_id": f"{home}-P0", "position": "WR",
+         "report_status": None, "practice_status": "dnp"},
+        {"season": 2014, "week": 5, "team": away, "gsis_id": f"{away}-P0", "position": "WR",
+         "report_status": "Out", "practice_status": "dnp"},
+    ], schema=INJURIES_SCHEMA)
+    out = compute_availability(raw.games, raw.snaps, injuries, raw.players)
+    row = out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
+    assert row["home_off_out"] is None and row["home_def_out"] is None
+    assert row["away_off_out"] is not None
+
+
 # --- position groups and player values -------------------------------------------------
 
 GROUP_COLS = [f"{side}_out_{g}" for side in ("home", "away") for g in GROUPS]
