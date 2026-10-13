@@ -411,7 +411,7 @@ def _contract_row(raw, injuries, contracts, params=AvailabilityParams(mode="valu
     return out.filter(pl.col("game_id") == game["game_id"]).row(0, named=True)
 
 
-def test_values_contract_uses_latest_contract_signed_before_the_season_over_group_median():
+def test_values_contract_uses_latest_contract_signed_before_the_season_as_a_group_percentile():
     raw = make_raw()
     game = _week5_game(raw)
     team = game["home_team"]
@@ -420,40 +420,75 @@ def test_values_contract_uses_latest_contract_signed_before_the_season_over_grou
         (f"{team}-P0", "WR", 2014, 0.5),  # signed in the game's season: not known yet
         (f"{team}-P0", "WR", 0, 0.9),  # unknown year: skipped
         ("z1", "TE", 2010, 0.01), ("z2", "WR", 2011, 0.03),
-        ("z3", "WR", 2014, 0.9),  # the game's season: not in the median either
+        ("z3", "WR", 2014, 0.9),  # the game's season: not in the distribution either
         ("z4", "QB", 2012, 0.2), ("z5", "LB", 2012, 0.5),  # other groups
     ])
-    # WR/TE median over contracts signed before 2014: [0.02, 0.04, 0.01, 0.03] -> 0.025
+    # WR/TE distribution over contracts signed before 2014: [0.01, 0.02, 0.03, 0.04]; 0.04 is the
+    # top, mid-rank percentile 3.5 / 4 -> quality 0.5 + 0.875
     row = _contract_row(raw, _home_injuries(game, {0: "Out"}), contracts)
-    assert row["home_out_wrte"] == pytest.approx(0.9 * 0.04 / 0.025)
+    assert row["home_out_wrte"] == pytest.approx(0.9 * (0.5 + 3.5 / 4))
     assert row["home_off_out"] == pytest.approx(0.9)  # the plain count stays a snap share
 
 
 def test_values_contract_defaults_by_draft_bucket_without_a_contract():
     from seahawks_ml.features.availability import DEFAULT_CONTRACT_QUALITY
 
-    assert DEFAULT_CONTRACT_QUALITY == {"round_1": 1.0, "day_2": 0.6, "later": 0.5, "udfa": 0.4}
+    assert DEFAULT_CONTRACT_QUALITY == {"round_1": 1.1, "day_2": 0.9, "later": 0.75, "udfa": 0.6}
     raw = make_raw()
     game = _week5_game(raw)
     # P5 round 1, P6 round 2, P7 round 5, P8 undrafted; none has a contract
     row = _contract_row(raw, _home_injuries(game, {5: "Out", 6: "Out", 7: "Out", 8: "Out"}),
                         _contracts([("z5", "LB", 2012, 0.5)]))
-    assert row["home_out_lb"] == pytest.approx(0.9 * (1.0 + 0.6 + 0.5 + 0.4))
+    assert row["home_out_lb"] == pytest.approx(0.9 * (1.1 + 0.9 + 0.75 + 0.6))
     # no contracts table at all: the same defaults
     row = _contract_row(raw, _home_injuries(game, {5: "Out"}), None)
-    assert row["home_out_lb"] == pytest.approx(0.9)
+    assert row["home_out_lb"] == pytest.approx(0.9 * 1.1)
 
 
-def test_values_contract_quality_is_clipped():
+def test_values_contract_quality_is_bounded_and_does_not_saturate():
     raw = make_raw()
     game = _week5_game(raw)
     team = game["home_team"]
+    # minimum-salary deals dominate the group, as in the real data
     contracts = _contracts([(f"{team}-P0", "WR", 2013, 1.0), (f"{team}-P1", "WR", 2013, 0.0),
-                            *[(f"z{i}", "WR", 2012, 0.01) for i in range(9)]])  # median 0.01
-    row = _contract_row(raw, _home_injuries(game, {0: "Out"}), contracts)
-    assert row["home_out_wrte"] == pytest.approx(0.9 * 5.0)
-    row = _contract_row(raw, _home_injuries(game, {1: "Out"}), contracts)
-    assert row["home_out_wrte"] == pytest.approx(0.9 * 0.2)
+                            *[(f"z{i}", "WR", 2012, 0.004) for i in range(9)]])
+    for idx in (0, 1):
+        row = _contract_row(raw, _home_injuries(game, {idx: "Out"}), contracts)
+        assert 0.9 * 0.5 <= row["home_out_wrte"] <= 0.9 * 1.5
+    top = _contract_row(raw, _home_injuries(game, {0: "Out"}), contracts)["home_out_wrte"]
+    bottom = _contract_row(raw, _home_injuries(game, {1: "Out"}), contracts)["home_out_wrte"]
+    assert top == pytest.approx(0.9 * (0.5 + 10.5 / 11))
+    assert bottom == pytest.approx(0.9 * (0.5 + 0.5 / 11))
+
+
+def _quality(rows, player_info=None):
+    from seahawks_ml.features.availability import _ContractQuality
+
+    return _ContractQuality(_contracts(rows), player_info or {})
+
+
+def test_contract_quality_is_monotonic_in_apy_and_ties_take_the_mid_rank():
+    q = _quality([("a", "WR", 2010, 0.001), ("b", "WR", 2010, 0.01), ("c", "WR", 2010, 0.01),
+                  ("d", "WR", 2010, 0.05), ("e", "TE", 2010, 0.2)])
+    vals = [q(p, "wrte", 2012) for p in ("a", "b", "d", "e")]
+    assert vals == sorted(vals)
+    # tied at ranks 1-2 -> mid-rank 2 of 5
+    assert q("b", "wrte", 2012) == q("c", "wrte", 2012) == pytest.approx(0.5 + 2 / 5)
+    assert all(0.5 <= v <= 1.5 for v in vals)
+
+
+def test_contract_quality_is_leak_free_across_seasons():
+    rows = [("a", "WR", 2010, 0.01), ("b", "WR", 2011, 0.02), ("c", "WR", 2012, 0.03)]
+    q = _quality(rows)
+    before = q("a", "wrte", 2012)
+    # a later-signed outlier changes nothing for seasons up to and including its signing year ...
+    q2 = _quality(rows + [("d", "WR", 2012, 0.9), ("a", "WR", 2012, 0.9)])
+    assert q2("a", "wrte", 2012) == before
+    assert q2("a", "wrte", 2011) == q("a", "wrte", 2011)
+    # ... and only shows up in later seasons
+    assert q2("a", "wrte", 2013) != q("a", "wrte", 2013)
+    # nothing is known before the earliest contract: defaults apply
+    assert q("a", "wrte", 2010) == 0.6  # no player_info -> udfa default
 
 
 def test_values_contract_maps_contract_positions_to_groups():
@@ -471,9 +506,9 @@ def test_values_contract_with_questionable():
     raw = make_raw()
     game = _week5_game(raw)
     team = game["home_team"]
-    contracts = _contracts([(f"{team}-P0", "WR", 2013, 0.04), ("z1", "WR", 2012, 0.01)])  # median 0.025
+    contracts = _contracts([(f"{team}-P0", "WR", 2013, 0.04), ("z1", "WR", 2012, 0.01)])  # P0 on top
     inj = _q_injuries(game, {0: ("Questionable", "dnp")})
     row = _contract_row(raw, inj, contracts, AvailabilityParams(mode="values_contract", questionable=True))
-    assert row["home_out_wrte"] == pytest.approx(0.6 * 0.9 * 0.04 / 0.025)
+    assert row["home_out_wrte"] == pytest.approx(0.6 * 0.9 * (0.5 + 1.5 / 2))
     row = _contract_row(raw, inj, contracts)
     assert row["home_out_wrte"] == 0.0

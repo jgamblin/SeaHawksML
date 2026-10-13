@@ -15,10 +15,13 @@ Outputs per team (home_/away_ prefix):
 - `off_out` / `def_out`: snap-share-weighted count of starters listed Out or Doubtful (plus
   p_miss x share for Questionable starters with `questionable`).
 - In mode "values_contract" each missing starter's group weight is snap share x contract quality:
-  apy_cap_pct of his latest contract with 0 < year_signed < the game's season, divided by the median
-  apy_cap_pct of his position group over all contracts signed before that season; with no such
-  contract, DEFAULT_CONTRACT_QUALITY by draft bucket. Clipped to CONTRACT_QUALITY_CLIP. Only
-  contracts signed in earlier seasons are read, so this is known before every game of the season.
+  0.5 + the percentile of the apy_cap_pct of his latest contract with 0 < year_signed < the game's
+  season within his position group's apy_cap_pct distribution over all contracts signed before that
+  season (empirical CDF, ties take the mid-rank), so quality is in [0.5, 1.5]. A ratio to the group
+  median saturated: minimum-salary deals dominate and apy_cap_pct is rounded to 0.001, so medians
+  are ~0.004 and ~40% of starters hit the cap. With no such contract, DEFAULT_CONTRACT_QUALITY by
+  draft bucket on the same scale. Only contracts signed in earlier seasons are read, so this is
+  known before every game of the season.
 - `out_<group>` for the six position groups (ol, wrte, rb, dl, lb, db): the same weight
   per group, using offense shares for ol/wrte/rb and defense shares for dl/lb/db. In the
   modes "values" and "values_pooled" each missing starter's weight is snap share x quality:
@@ -38,7 +41,7 @@ Outputs per team (home_/away_ prefix):
     time, so it does not leak.
 """
 
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
@@ -83,9 +86,9 @@ DURABILITY_GAMES = 8
 # OverTheCap contract positions that the snap-count labels don't cover
 CONTRACT_POSITION_GROUPS = {**POSITION_GROUPS, **dict.fromkeys(("LT", "LG", "RG", "RT"), "ol"),
                             **dict.fromkeys(("ED", "IDL"), "dl")}
-# Contract quality (x position-group median) for a starter with no contract signed before the season
-DEFAULT_CONTRACT_QUALITY = {"round_1": 1.0, "day_2": 0.6, "later": 0.5, "udfa": 0.4}
-CONTRACT_QUALITY_CLIP = (0.2, 5.0)
+# Contract quality is 0.5 + the player's percentile in his position group's apy_cap_pct, in [0.5, 1.5];
+# these are the defaults on that scale for a starter with no contract signed before the season
+DEFAULT_CONTRACT_QUALITY = {"round_1": 1.1, "day_2": 0.9, "later": 0.75, "udfa": 0.6}
 
 DRAFT_BUCKETS = ("round_1", "day_2", "later", "udfa")
 # (draft bucket, quality) pairs: a tuple so AvailabilityParams stays immutable and hashable
@@ -234,14 +237,15 @@ class _SkillHistory:
 
 
 class _ContractQuality:
-    """Leak-free contract quality: a player's latest contract signed in an earlier season over the
-    position-group median of contracts signed in earlier seasons, else a draft-bucket default."""
+    """Leak-free contract quality: 0.5 + the percentile of a player's latest contract signed in an
+    earlier season within his position group's apy_cap_pct over contracts signed in earlier seasons
+    (empirical CDF, ties take the mid-rank); else a draft-bucket default. Always in [0.5, 1.5]."""
 
     def __init__(self, contracts: pl.DataFrame | None, player_info: dict):
         self._player_info = player_info
         self._players: dict[str, tuple[list[int], list[float]]] = {}
         self._groups: dict[str, list[tuple[int, float]]] = defaultdict(list)
-        self._medians: dict[tuple[str, int], float | None] = {}
+        self._sorted: dict[tuple[str, int], list[float]] = {}  # (group, season) -> sorted apys
         if contracts is None:
             return
         rows = contracts.filter((pl.col("year_signed") > 0) & pl.col("apy_cap_pct").is_not_null()
@@ -256,26 +260,23 @@ class _ContractQuality:
                 self._groups[group].append((r["year_signed"], r["apy_cap_pct"]))
         self._players = dict(per_player)
 
-    def _median(self, group: str, season: int) -> float | None:
+    def _distribution(self, group: str, season: int) -> list[float]:
         key = (group, season)
-        if key not in self._medians:
-            vals = [apy for year, apy in self._groups.get(group, ()) if year < season]
-            self._medians[key] = float(np.median(vals)) if vals else None
-        return self._medians[key]
+        if key not in self._sorted:
+            self._sorted[key] = sorted(apy for year, apy in self._groups.get(group, ()) if year < season)
+        return self._sorted[key]
 
     def __call__(self, gsis: str, group: str, season: int) -> float:
-        q = None
         if gsis in self._players:
             years, apys = self._players[gsis]
             i = bisect_left(years, season)  # contracts signed before the season; same year: highest apy
-            median = self._median(group, season)
-            if i and median:
-                q = apys[i - 1] / median
-        if q is None:
-            info = self._player_info.get(gsis)
-            q = DEFAULT_CONTRACT_QUALITY[draft_bucket(info["draft_round"] if info else None)]
-        lo, hi = CONTRACT_QUALITY_CLIP
-        return min(hi, max(lo, q))
+            dist = self._distribution(group, season)
+            if i and dist:
+                apy = apys[i - 1]
+                mid_rank = (bisect_left(dist, apy) + bisect_right(dist, apy)) / 2
+                return 0.5 + mid_rank / len(dist)
+        info = self._player_info.get(gsis)
+        return DEFAULT_CONTRACT_QUALITY[draft_bucket(info["draft_round"] if info else None)]
 
 
 class _SnapIndex:

@@ -19,7 +19,9 @@ Baseline: model 0.6277 walk-forward log-loss (Elo 0.6327, Vegas 0.6130); availab
 - Toggle `AvailabilityParams.questionable` (default False).
 
 ## 3. Contract value as player quality
-- nflverse `load_contracts()`: for each player and game, the most recent contract with `year_signed` strictly before the game's season → `apy_cap_pct`. Normalize within position group (value ÷ group median). Missing → rookie-scale default by draft bucket (round 1 = 1.0× group median, later = 0.5×, undrafted = 0.4×). Cached as `data/cache/contracts.parquet`.
+- nflverse `load_contracts()`: for each player and game, the most recent contract with `year_signed` strictly before the game's season → `apy_cap_pct`. Quality is a bounded percentile scale: `0.5 + percentile`, where percentile is the player's `apy_cap_pct` rank within his position group's distribution of contracts with `0 < year_signed < season` (empirical CDF, ties → mid-rank), so quality ∈ [0.5, 1.5]. Leak-free: only earlier-season contracts enter either the player's value or the distribution; sorted arrays are precomputed per (season, group) and queried with `bisect`.
+- Why not value ÷ group median (the first version, clipped to [0.2, 5]): minimum-salary deals dominate each group and `apy_cap_pct` is rounded to 0.001, so group medians are ~0.004 and ~40% of starters saturated at the cap — the feature only separated "real contract" from "rookie/minimum". The percentile scale keeps resolution across the whole distribution.
+- Missing contract → draft-bucket default on the same scale (round 1 = 1.1, day 2 = 0.9, later = 0.75, undrafted = 0.6). Cached as `data/cache/contracts.parquet`.
 - New availability mode `values_contract`: pooled offense/defense diffs (like `values_pooled`) with snap share × contract quality.
 
 ## 4. Altitude
