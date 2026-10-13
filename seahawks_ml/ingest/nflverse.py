@@ -93,7 +93,8 @@ def aggregate_team_epa(pbp: pl.DataFrame, fumble_epa: float | None = FUMBLE_PLAY
     field goals, punts, kickoffs and extra points on which it is the possession team
     (nflverse `posteam`; on kickoffs that is the receiving team). Not fumble-neutralized
     (special-teams fumbles are mostly muffs). The opponent's sum is subtracted later, in
-    the ratings. A team with no special-teams plays in a game gets 0 / 0.
+    the ratings. A team with no special-teams plays in a game gets 0 / 0. `st_plays` is
+    informational only (kept for the cache schema); no feature reads it.
     """
     plays = pbp.filter(
         pl.col("play_type").is_in(["pass", "run"])
