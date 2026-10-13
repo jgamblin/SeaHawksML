@@ -21,7 +21,9 @@ TEAM_EPA_SCHEMA = {
     "pass_epa_sum": pl.Float64, "pass_plays": pl.Int64,
     "rush_epa_sum": pl.Float64, "rush_plays": pl.Int64,
     "success_sum": pl.Float64,
+    "st_epa_sum": pl.Float64, "st_plays": pl.Int64,
 }
+SPECIAL_TEAMS_PLAY_TYPES = ["field_goal", "punt", "kickoff", "extra_point"]
 QB_GAMES_SCHEMA = {
     "game_id": pl.Utf8, "season": pl.Int64, "team": pl.Utf8, "qb_id": pl.Utf8,
     "dropbacks": pl.Int64, "qb_epa_sum": pl.Float64, "cpoe_sum": pl.Float64, "cpoe_n": pl.Int64,
@@ -81,6 +83,12 @@ def aggregate_team_epa(pbp: pl.DataFrame, fumble_epa: float | None = FUMBLE_PLAY
     so who happens to recover doesn't move ratings. `None` disables neutralization.
     Caveats: the overwrite applies even when the offense recovers its own fumble, and
     `success` is not neutralized.
+
+    Special teams: `st_epa_sum`/`st_plays` are the team's EPA and play count over
+    field goals, punts, kickoffs and extra points on which it is the possession team
+    (nflverse `posteam`; on kickoffs that is the receiving team). Not fumble-neutralized
+    (special-teams fumbles are mostly muffs). The opponent's sum is subtracted later, in
+    the ratings. A team with no special-teams plays in a game gets 0 / 0.
     """
     plays = pbp.filter(
         pl.col("play_type").is_in(["pass", "run"])
@@ -93,6 +101,15 @@ def aggregate_team_epa(pbp: pl.DataFrame, fumble_epa: float | None = FUMBLE_PLAY
         plays = plays.with_columns(pl.when(fumble).then(pl.lit(fumble_epa)).otherwise(pl.col("epa")).alias("epa"))
     is_pass = pl.col("pass").fill_null(0) == 1
     is_rush = pl.col("rush").fill_null(0) == 1
+    special = (
+        pbp.filter(
+            pl.col("play_type").is_in(SPECIAL_TEAMS_PLAY_TYPES)
+            & pl.col("epa").is_not_null()
+            & pl.col("posteam").is_not_null()
+        )
+        .group_by("game_id", "posteam")
+        .agg(pl.col("epa").sum().alias("st_epa_sum"), pl.len().alias("st_plays"))
+    )
     return (
         plays.group_by("game_id", "season", "posteam", "defteam")
         .agg(
@@ -104,6 +121,8 @@ def aggregate_team_epa(pbp: pl.DataFrame, fumble_epa: float | None = FUMBLE_PLAY
             is_rush.sum().alias("rush_plays"),
             pl.col("success").fill_null(0).sum().alias("success_sum"),
         )
+        .join(special, on=["game_id", "posteam"], how="left")
+        .with_columns(pl.col("st_epa_sum").fill_null(0.0), pl.col("st_plays").fill_null(0))
         .rename({"posteam": "team", "defteam": "opponent"})
         .with_columns(normalize_team("team"), normalize_team("opponent"))
         .cast(TEAM_EPA_SCHEMA)

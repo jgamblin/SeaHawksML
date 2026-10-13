@@ -4,24 +4,27 @@ from seahawks_ml.ingest.nflverse import FUMBLE_PLAY_EPA, aggregate_qb_games, agg
 
 
 def _pbp():
+    # rows 0-7: scrimmage (and one punt); rows 8-11: special teams. nflverse posteam on a
+    # kickoff is the receiving team.
     return pl.DataFrame({
-        "game_id": ["g1"] * 8,
-        "season": [2015] * 8,
-        "posteam": ["STL", "STL", "STL", "SEA", "SEA", None, "SEA", "SEA"],
-        "defteam": ["SEA", "SEA", "SEA", "STL", "STL", None, "STL", "STL"],
-        "play_type": ["pass", "run", "punt", "pass", "pass", None, "run", "pass"],
-        "epa": [0.5, -0.1, 2.0, 1.0, None, 0.3, 0.9, 0.7],
-        "qb_dropback": [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0],
-        "passer_player_id": ["QB-STL", None, None, "QB-SEA", "QB-SEA", None, None, "QB-SEA"],
-        "passer_id": ["QB-STL", None, None, "QB-SEA", "QB-SEA", None, "QB-SEA", "QB-SEA"],
-        "qb_epa": [0.5, -0.1, 2.0, 1.0, None, 0.3, 0.9, 0.7],
-        "cpoe": [10.0, None, None, None, -5.0, None, None, None],
-        "two_point_attempt": [0.0, None, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        "game_id": ["g1"] * 12,
+        "season": [2015] * 12,
+        "posteam": ["STL", "STL", "STL", "SEA", "SEA", None, "SEA", "SEA", "SEA", "SEA", "SEA", None],
+        "defteam": ["SEA", "SEA", "SEA", "STL", "STL", None, "STL", "STL", "STL", "STL", "STL", None],
+        "play_type": ["pass", "run", "punt", "pass", "pass", None, "run", "pass",
+                      "kickoff", "field_goal", "extra_point", "kickoff"],
+        "epa": [0.5, -0.1, 2.0, 1.0, None, 0.3, 0.9, 0.7, -0.4, 1.2, None, 5.0],
+        "qb_dropback": [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        "passer_player_id": ["QB-STL", None, None, "QB-SEA", "QB-SEA", None, None, "QB-SEA", None, None, None, None],
+        "passer_id": ["QB-STL", None, None, "QB-SEA", "QB-SEA", None, "QB-SEA", "QB-SEA", None, None, None, None],
+        "qb_epa": [0.5, -0.1, 2.0, 1.0, None, 0.3, 0.9, 0.7, -0.4, 1.2, None, 5.0],
+        "cpoe": [10.0, None, None, None, -5.0, None, None, None, None, None, None, None],
+        "two_point_attempt": [0.0, None, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         # row 6 is a QB scramble: play_type run, but pass == 1
-        "pass": [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0],
-        "rush": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        "success": [1.0, 0.0, 1.0, 1.0, None, 1.0, 1.0, 1.0],
-        "fumble": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "pass": [1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        "rush": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "success": [1.0, 0.0, 1.0, 1.0, None, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0],
+        "fumble": [0.0] * 12,
     })
 
 
@@ -48,7 +51,7 @@ def test_aggregate_team_epa_pass_rush_success_split():
 
 
 def _fumble_pbp():
-    return _pbp().with_columns(pl.Series("fumble", [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]))
+    return _pbp().with_columns(pl.Series("fumble", [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0] + [0.0] * 4))
 
 
 def test_aggregate_team_epa_neutralizes_fumble_luck_with_constant():
@@ -75,6 +78,29 @@ def test_aggregate_team_epa_fumble_value_is_independent_of_frame():
 def test_aggregate_team_epa_fumble_epa_override():
     rows = {r["team"]: r for r in aggregate_team_epa(_fumble_pbp(), fumble_epa=-3.0).iter_rows(named=True)}
     assert abs(rows["LA"]["epa_sum"] + 6.0) < 1e-9
+
+
+def test_aggregate_team_epa_special_teams_sums():
+    rows = {r["team"]: r for r in aggregate_team_epa(_pbp()).iter_rows(named=True)}
+    # possession team's EPA on punts / kickoffs / field goals / extra points
+    assert rows["LA"]["st_plays"] == 1 and abs(rows["LA"]["st_epa_sum"] - 2.0) < 1e-9
+    # null-epa extra point and null-posteam kickoff excluded
+    assert rows["SEA"]["st_plays"] == 2 and abs(rows["SEA"]["st_epa_sum"] - 0.8) < 1e-9
+    # special-teams plays don't count as scrimmage plays
+    assert rows["SEA"]["plays"] == 2 and rows["LA"]["plays"] == 2
+
+
+def test_aggregate_team_epa_special_teams_not_fumble_neutralized():
+    pbp = _pbp().with_columns(pl.lit(1.0).alias("fumble"))
+    rows = {r["team"]: r for r in aggregate_team_epa(pbp).iter_rows(named=True)}
+    assert abs(rows["LA"]["st_epa_sum"] - 2.0) < 1e-9
+    assert abs(rows["SEA"]["st_epa_sum"] - 0.8) < 1e-9
+
+
+def test_aggregate_team_epa_team_without_special_teams_plays_gets_zero():
+    pbp = _pbp().filter(~((pl.col("posteam") == "STL") & (pl.col("play_type") == "punt")))
+    rows = {r["team"]: r for r in aggregate_team_epa(pbp).iter_rows(named=True)}
+    assert rows["LA"]["st_plays"] == 0 and rows["LA"]["st_epa_sum"] == 0.0
 
 
 def test_aggregate_qb_games_sums_dropbacks():
@@ -167,6 +193,10 @@ def test_old_schema_team_epa_cache_is_refetched(monkeypatch, tmp_path):
     pl.read_parquet(path).select("game_id", "season", "team", "opponent", "epa_sum", "plays").write_parquet(path)
     out = nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
     assert calls == [2005, 2005]
+    # a cache from before the special-teams columns is outdated too
+    pl.read_parquet(path).drop("st_epa_sum", "st_plays").write_parquet(path)
+    out = nv.load_season_tables([2005], current_season=2006, cache_dir=tmp_path)
+    assert calls == [2005, 2005, 2005]
     assert set(nv.TEAM_EPA_SCHEMA) <= set(pl.read_parquet(path).columns)
     assert out["team_epa"].columns == list(nv.TEAM_EPA_SCHEMA)
 
