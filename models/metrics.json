@@ -1,6 +1,6 @@
 {
-  "model_version": "20261006-690167d9",
-  "trained_at": "2026-10-06T19:24:25.491606+00:00",
+  "model_version": "20261013-5e25267d",
+  "trained_at": "2026-10-13T12:43:30.003764+00:00",
   "train_seasons": [
     2009,
     2010,
@@ -21,7 +21,7 @@
     2025,
     2026
   ],
-  "n_games": 4694,
+  "n_games": 4709,
   "config": {
     "model": {
       "kind": "ridge",
@@ -41,14 +41,15 @@
       "prior_games": 6.0,
       "prior_games_new_coach": 2.0,
       "opponent_adjust": false,
-      "extra_stats": true
+      "extra_stats": true,
+      "special_teams": true
     },
     "qb": {
       "prior_dropbacks": 150.0,
       "window_seasons": 3
     },
     "availability": {
-      "mode": "count_diff",
+      "mode": "count",
       "prior_opps": 60.0,
       "quality_scale": 4.0,
       "lineman_quality": {
@@ -57,7 +58,11 @@
         "later": 1.0,
         "udfa": 0.9
       },
-      "durability_weight": 0.5
+      "durability_weight": 0.5,
+      "questionable": false
+    },
+    "situational": {
+      "altitude": false
     }
   },
   "feature_columns": [
@@ -73,6 +78,7 @@
     "rush_def_diff",
     "success_off_diff",
     "success_def_diff",
+    "st_diff",
     "qb_epa_diff",
     "qb_cpoe_diff",
     "home_qb_round_1",
@@ -106,6 +112,7 @@
     "away_body_clock",
     "primetime",
     "div_game",
+    "away_altitude_gain_km",
     "week_number",
     "is_final_regular_week",
     "is_playoff",

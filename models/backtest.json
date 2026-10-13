@@ -32,14 +32,15 @@
       "prior_games": 6.0,
       "prior_games_new_coach": 2.0,
       "opponent_adjust": false,
-      "extra_stats": true
+      "extra_stats": true,
+      "special_teams": true
     },
     "qb": {
       "prior_dropbacks": 150.0,
       "window_seasons": 3
     },
     "availability": {
-      "mode": "count_diff",
+      "mode": "count",
       "prior_opps": 60.0,
       "quality_scale": 4.0,
       "lineman_quality": {
@@ -48,90 +49,94 @@
         "later": 1.0,
         "udfa": 0.9
       },
-      "durability_weight": 0.5
+      "durability_weight": 0.5,
+      "questionable": false
+    },
+    "situational": {
+      "altitude": false
     }
   },
   "score": {
     "model": {
       "n": 3259,
-      "log_loss": 0.6276783556618626,
-      "brier": 0.21825717841836242,
-      "accuracy": 0.6479827533107484,
-      "margin_mae": 10.255885145546417,
+      "log_loss": 0.6264272964138835,
+      "brier": 0.21772973269742218,
+      "accuracy": 0.6501385894672005,
+      "margin_mae": 10.246445768803442,
       "log_loss_ci90": [
-        0.6178065796434739,
-        0.6362829981992544
+        0.6167252932470929,
+        0.6344891626345264
       ],
       "calibration": [
         {
           "bin_low": 0.0,
           "bin_high": 0.1,
-          "n": 3,
-          "mean_pred": 0.07906571987684208,
+          "n": 5,
+          "mean_pred": 0.08613664719808939,
           "mean_outcome": 0.0
         },
         {
           "bin_low": 0.1,
           "bin_high": 0.2,
-          "n": 41,
-          "mean_pred": 0.16749730172916533,
-          "mean_outcome": 0.24390243902439024
+          "n": 48,
+          "mean_pred": 0.16862297653537708,
+          "mean_outcome": 0.25
         },
         {
           "bin_low": 0.2,
           "bin_high": 0.30000000000000004,
-          "n": 142,
-          "mean_pred": 0.257981778115978,
-          "mean_outcome": 0.2640845070422535
+          "n": 154,
+          "mean_pred": 0.2598258711558063,
+          "mean_outcome": 0.2727272727272727
         },
         {
           "bin_low": 0.30000000000000004,
           "bin_high": 0.4,
-          "n": 338,
-          "mean_pred": 0.3587324005368357,
-          "mean_outcome": 0.3328402366863905
+          "n": 342,
+          "mean_pred": 0.35974739226152275,
+          "mean_outcome": 0.3333333333333333
         },
         {
           "bin_low": 0.4,
           "bin_high": 0.5,
-          "n": 597,
-          "mean_pred": 0.4511044581514669,
-          "mean_outcome": 0.4288107202680067
+          "n": 603,
+          "mean_pred": 0.45198809377300564,
+          "mean_outcome": 0.4311774461028192
         },
         {
           "bin_low": 0.5,
           "bin_high": 0.6000000000000001,
-          "n": 785,
-          "mean_pred": 0.5514261965266364,
-          "mean_outcome": 0.5445859872611465
+          "n": 759,
+          "mean_pred": 0.5510736251443727,
+          "mean_outcome": 0.5474308300395256
         },
         {
           "bin_low": 0.6000000000000001,
           "bin_high": 0.7000000000000001,
-          "n": 712,
-          "mean_pred": 0.645930237424765,
-          "mean_outcome": 0.6544943820224719
+          "n": 695,
+          "mean_pred": 0.6465940543599233,
+          "mean_outcome": 0.6575539568345323
         },
         {
           "bin_low": 0.7000000000000001,
           "bin_high": 0.8,
-          "n": 465,
-          "mean_pred": 0.7430603301129237,
-          "mean_outcome": 0.7569892473118279
+          "n": 471,
+          "mean_pred": 0.745694128935105,
+          "mean_outcome": 0.7622080679405521
         },
         {
           "bin_low": 0.8,
           "bin_high": 0.9,
-          "n": 162,
-          "mean_pred": 0.8363185769548982,
-          "mean_outcome": 0.904320987654321
+          "n": 164,
+          "mean_pred": 0.8373603502153129,
+          "mean_outcome": 0.8810975609756098
         },
         {
           "bin_low": 0.9,
           "bin_high": 1.0,
-          "n": 14,
-          "mean_pred": 0.920911129509063,
-          "mean_outcome": 0.9285714285714286
+          "n": 18,
+          "mean_pred": 0.9190557470087958,
+          "mean_outcome": 0.9444444444444444
         }
       ]
     },
@@ -323,107 +328,107 @@
     },
     "seahawks_only": {
       "n": 212,
-      "log_loss": 0.6036462248044153,
-      "brier": 0.2073746122787872,
-      "accuracy": 0.6777251184834123,
+      "log_loss": 0.6022416281043317,
+      "brier": 0.2068843312571366,
+      "accuracy": 0.6587677725118484,
       "margin_mae": null
     },
     "per_season": [
       {
         "season": 2012,
         "n": 267,
-        "log_loss": 0.6232485728290247,
-        "brier": 0.21723711481754232,
-        "accuracy": 0.6203007518796992,
-        "margin_mae": 11.067214218312209
+        "log_loss": 0.623904506219125,
+        "brier": 0.2175074109957713,
+        "accuracy": 0.6165413533834586,
+        "margin_mae": 11.079393787396244
       },
       {
         "season": 2013,
         "n": 267,
-        "log_loss": 0.6118721165575952,
-        "brier": 0.2119256992079192,
-        "accuracy": 0.6541353383458647,
-        "margin_mae": 9.771248374018208
+        "log_loss": 0.6098755399879435,
+        "brier": 0.21108215129885624,
+        "accuracy": 0.650375939849624,
+        "margin_mae": 9.764719621740843
       },
       {
         "season": 2014,
         "n": 267,
-        "log_loss": 0.6178573361484192,
-        "brier": 0.21418135857708753,
-        "accuracy": 0.650375939849624,
-        "margin_mae": 11.55481897548427
+        "log_loss": 0.6151981617053881,
+        "brier": 0.21293593300251742,
+        "accuracy": 0.6541353383458647,
+        "margin_mae": 11.532655215405178
       },
       {
         "season": 2015,
         "n": 267,
-        "log_loss": 0.6578117257326108,
-        "brier": 0.23237109163405736,
-        "accuracy": 0.6104868913857678,
-        "margin_mae": 10.502914344570192
+        "log_loss": 0.6588332289232999,
+        "brier": 0.23264384446178943,
+        "accuracy": 0.6217228464419475,
+        "margin_mae": 10.514728634761537
       },
       {
         "season": 2016,
         "n": 267,
-        "log_loss": 0.6314493913070298,
-        "brier": 0.21924383480191337,
-        "accuracy": 0.6150943396226415,
-        "margin_mae": 9.313069744681377
+        "log_loss": 0.6241006756360874,
+        "brier": 0.2159655389996672,
+        "accuracy": 0.6490566037735849,
+        "margin_mae": 9.201196336260539
       },
       {
         "season": 2017,
         "n": 267,
-        "log_loss": 0.6167776956247368,
-        "brier": 0.21408687758896403,
-        "accuracy": 0.6816479400749064,
-        "margin_mae": 10.422159479003811
+        "log_loss": 0.6134214568745437,
+        "brier": 0.21261946497964407,
+        "accuracy": 0.6704119850187266,
+        "margin_mae": 10.325729392870047
       },
       {
         "season": 2018,
         "n": 267,
-        "log_loss": 0.6101683969098424,
-        "brier": 0.20922477321126326,
-        "accuracy": 0.6792452830188679,
-        "margin_mae": 9.854958843600004
+        "log_loss": 0.6069345202024191,
+        "brier": 0.2082005241635153,
+        "accuracy": 0.660377358490566,
+        "margin_mae": 9.907160348385855
       },
       {
         "season": 2019,
         "n": 267,
-        "log_loss": 0.632365387364876,
-        "brier": 0.22042989920668546,
-        "accuracy": 0.6428571428571429,
-        "margin_mae": 10.370933566902513
+        "log_loss": 0.6328359876325886,
+        "brier": 0.22062467375245212,
+        "accuracy": 0.650375939849624,
+        "margin_mae": 10.39379174647809
       },
       {
         "season": 2020,
         "n": 269,
-        "log_loss": 0.6134771921037391,
-        "brier": 0.2110504641473232,
-        "accuracy": 0.6828358208955224,
-        "margin_mae": 9.941903490813562
+        "log_loss": 0.6118979970067806,
+        "brier": 0.21047221907973654,
+        "accuracy": 0.6977611940298507,
+        "margin_mae": 9.89995610988119
       },
       {
         "season": 2021,
         "n": 285,
-        "log_loss": 0.633303151818489,
-        "brier": 0.22047598618534653,
-        "accuracy": 0.6373239436619719,
-        "margin_mae": 10.808614358627123
+        "log_loss": 0.6344202374240782,
+        "brier": 0.22110696786096337,
+        "accuracy": 0.6338028169014085,
+        "margin_mae": 10.773279875293204
       },
       {
         "season": 2022,
         "n": 284,
-        "log_loss": 0.6424102131558643,
-        "brier": 0.22387525054558852,
-        "accuracy": 0.648936170212766,
-        "margin_mae": 9.228389793277557
+        "log_loss": 0.644858384277778,
+        "brier": 0.2249717215157218,
+        "accuracy": 0.6453900709219859,
+        "margin_mae": 9.31495414378754
       },
       {
         "season": 2023,
         "n": 285,
-        "log_loss": 0.639398180424475,
-        "brier": 0.22413427753302428,
+        "log_loss": 0.6384338961748728,
+        "brier": 0.22359641949451003,
         "accuracy": 0.6526315789473685,
-        "margin_mae": 10.264337094289447
+        "margin_mae": 10.274293608552625
       }
     ]
   },
@@ -442,7 +447,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6292775171708872
+      "log_loss": 0.6287746542748626
     },
     {
       "config": {
@@ -458,7 +463,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6286587421170592
+      "log_loss": 0.6280432780841863
     },
     {
       "config": {
@@ -474,7 +479,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6285866371155098
+      "log_loss": 0.6279295979462824
     },
     {
       "config": {
@@ -490,7 +495,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6281585709209406
+      "log_loss": 0.6272311242240018
     },
     {
       "config": {
@@ -506,7 +511,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6277373366884196
+      "log_loss": 0.6267871303807695
     },
     {
       "config": {
@@ -522,7 +527,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.627711173495889
+      "log_loss": 0.6267501076756937
     },
     {
       "config": {
@@ -538,7 +543,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6281921740851221
+      "log_loss": 0.6269171164116345
     },
     {
       "config": {
@@ -554,7 +559,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.627747914953451
+      "log_loss": 0.6264880842827439
     },
     {
       "config": {
@@ -570,7 +575,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6276783556618626
+      "log_loss": 0.6264272964138835
     },
     {
       "config": {
@@ -586,7 +591,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6302560550127305
+      "log_loss": 0.6289981450363159
     },
     {
       "config": {
@@ -602,7 +607,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6292286690339741
+      "log_loss": 0.6279221666494413
     },
     {
       "config": {
@@ -618,7 +623,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6288722757726631
+      "log_loss": 0.6275499460753411
     },
     {
       "config": {
@@ -638,7 +643,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6301599910792536
+      "log_loss": 0.6296794629924983
     },
     {
       "config": {
@@ -658,7 +663,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6296478856899739
+      "log_loss": 0.629168636272428
     },
     {
       "config": {
@@ -678,7 +683,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.630067464997799
+      "log_loss": 0.62915867484452
     },
     {
       "config": {
@@ -698,7 +703,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6340997336352918
+      "log_loss": 0.6332209549885893
     },
     {
       "config": {
@@ -718,7 +723,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6331248329474544
+      "log_loss": 0.6322750229372255
     },
     {
       "config": {
@@ -738,7 +743,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.632892265772009
+      "log_loss": 0.632344318295015
     },
     {
       "config": {
@@ -754,7 +759,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6309887895665138
+      "log_loss": 0.6301695815882806
     },
     {
       "config": {
@@ -770,7 +775,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6296323060221157
+      "log_loss": 0.6285563572246082
     },
     {
       "config": {
@@ -786,7 +791,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6345133386369334
+      "log_loss": 0.6331477316309418
     },
     {
       "config": {
@@ -802,7 +807,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6283015961939772
+      "log_loss": 0.6271702210990489
     },
     {
       "config": {
@@ -818,7 +823,7 @@
         "use_platt": false,
         "inner_folds": 20
       },
-      "log_loss": 0.6292686760909101
+      "log_loss": 0.6282333086082116
     },
     {
       "config": {
@@ -834,7 +839,7 @@
         "use_platt": true,
         "inner_folds": 20
       },
-      "log_loss": 0.6287662045537254
+      "log_loss": 0.6275992544160673
     }
   ],
   "feature_trials": [
@@ -845,9 +850,10 @@
         "prior_games": 6.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": false,
-        "extra_stats": false
+        "extra_stats": false,
+        "special_teams": false
       },
-      "log_loss": 0.6286102403461072
+      "log_loss": 0.6285659099534278
     },
     {
       "stage": "rating",
@@ -856,9 +862,10 @@
         "prior_games": 6.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": false,
-        "extra_stats": true
+        "extra_stats": true,
+        "special_teams": false
       },
-      "log_loss": 0.628429704043292
+      "log_loss": 0.6283740843693626
     },
     {
       "stage": "rating",
@@ -867,9 +874,10 @@
         "prior_games": 6.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": true,
-        "extra_stats": false
+        "extra_stats": false,
+        "special_teams": false
       },
-      "log_loss": 0.6289374937136807
+      "log_loss": 0.6288909206881953
     },
     {
       "stage": "rating",
@@ -878,9 +886,10 @@
         "prior_games": 6.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": true,
-        "extra_stats": true
+        "extra_stats": true,
+        "special_teams": false
       },
-      "log_loss": 0.62895876674531
+      "log_loss": 0.6288989676997838
     },
     {
       "stage": "rating",
@@ -889,9 +898,10 @@
         "prior_games": 4.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": true,
-        "extra_stats": true
+        "extra_stats": true,
+        "special_teams": false
       },
-      "log_loss": 0.6291993071315273
+      "log_loss": 0.6291376289961743
     },
     {
       "stage": "rating",
@@ -900,9 +910,10 @@
         "prior_games": 6.0,
         "prior_games_new_coach": 3.0,
         "opponent_adjust": true,
-        "extra_stats": true
+        "extra_stats": true,
+        "special_teams": false
       },
-      "log_loss": 0.6288040839943643
+      "log_loss": 0.6287435012929802
     },
     {
       "stage": "rating",
@@ -911,9 +922,22 @@
         "prior_games": 4.0,
         "prior_games_new_coach": 2.0,
         "opponent_adjust": true,
-        "extra_stats": true
+        "extra_stats": true,
+        "special_teams": false
       },
-      "log_loss": 0.6290701900628457
+      "log_loss": 0.6290083868989933
+    },
+    {
+      "stage": "rating",
+      "rating": {
+        "prior_regression": 0.6,
+        "prior_games": 6.0,
+        "prior_games_new_coach": 2.0,
+        "opponent_adjust": false,
+        "extra_stats": true,
+        "special_teams": true
+      },
+      "log_loss": 0.627253198694319
     },
     {
       "stage": "qb",
@@ -921,7 +945,7 @@
         "prior_dropbacks": 150.0,
         "window_seasons": 3
       },
-      "log_loss": 0.6284035551581869
+      "log_loss": 0.6272311242240018
     },
     {
       "stage": "qb",
@@ -929,7 +953,7 @@
         "prior_dropbacks": 250.0,
         "window_seasons": 3
       },
-      "log_loss": 0.628429704043292
+      "log_loss": 0.627253198694319
     },
     {
       "stage": "qb",
@@ -937,7 +961,7 @@
         "prior_dropbacks": 400.0,
         "window_seasons": 3
       },
-      "log_loss": 0.6285692881400339
+      "log_loss": 0.6273978264233435
     },
     {
       "stage": "availability",
@@ -951,9 +975,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6284035551581869
+      "log_loss": 0.6272311242240018
     },
     {
       "stage": "availability",
@@ -967,9 +992,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6281585709209406
+      "log_loss": 0.6271252855012832
     },
     {
       "stage": "availability",
@@ -983,9 +1009,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6281675791647086
+      "log_loss": 0.6271295555122604
     },
     {
       "stage": "availability",
@@ -999,9 +1026,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6282254648112474
+      "log_loss": 0.627168739547158
     },
     {
       "stage": "availability",
@@ -1015,9 +1043,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6281933009583456
+      "log_loss": 0.6271354150703758
     },
     {
       "stage": "availability",
@@ -1031,9 +1060,10 @@
           "later": 1.0,
           "udfa": 1.0
         },
-        "durability_weight": 0.0
+        "durability_weight": 0.0,
+        "questionable": false
       },
-      "log_loss": 0.6281704059229545
+      "log_loss": 0.627108208946325
     },
     {
       "stage": "availability",
@@ -1047,9 +1077,10 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.630119416148191
+      "log_loss": 0.6291145262063901
     },
     {
       "stage": "availability",
@@ -1063,9 +1094,75 @@
           "later": 1.0,
           "udfa": 0.9
         },
-        "durability_weight": 0.5
+        "durability_weight": 0.5,
+        "questionable": false
       },
-      "log_loss": 0.6299134842464569
+      "log_loss": 0.6289146201777771
+    },
+    {
+      "stage": "availability",
+      "availability": {
+        "mode": "count_diff",
+        "prior_opps": 60.0,
+        "quality_scale": 4.0,
+        "lineman_quality": {
+          "round_1": 1.3,
+          "day_2": 1.1,
+          "later": 1.0,
+          "udfa": 0.9
+        },
+        "durability_weight": 0.5,
+        "questionable": true
+      },
+      "log_loss": 0.6269987082071953
+    },
+    {
+      "stage": "availability",
+      "availability": {
+        "mode": "values_contract",
+        "prior_opps": 60.0,
+        "quality_scale": 4.0,
+        "lineman_quality": {
+          "round_1": 1.3,
+          "day_2": 1.1,
+          "later": 1.0,
+          "udfa": 0.9
+        },
+        "durability_weight": 0.5,
+        "questionable": false
+      },
+      "log_loss": 0.6272292808284624
+    },
+    {
+      "stage": "availability",
+      "availability": {
+        "mode": "values_contract",
+        "prior_opps": 60.0,
+        "quality_scale": 4.0,
+        "lineman_quality": {
+          "round_1": 1.3,
+          "day_2": 1.1,
+          "later": 1.0,
+          "udfa": 0.9
+        },
+        "durability_weight": 0.5,
+        "questionable": true
+      },
+      "log_loss": 0.6270511533564468
+    },
+    {
+      "stage": "situational",
+      "situational": {
+        "altitude": false
+      },
+      "log_loss": 0.6272311242240018
+    },
+    {
+      "stage": "situational",
+      "situational": {
+        "altitude": true
+      },
+      "log_loss": 0.6273494443501689
     }
   ]
 }

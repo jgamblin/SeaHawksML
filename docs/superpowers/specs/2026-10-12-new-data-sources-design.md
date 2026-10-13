@@ -28,3 +28,22 @@ Baseline: model 0.6277 walk-forward log-loss (Elo 0.6327, Vegas 0.6130); availab
 - `elevation_m` column in `data/stadiums.csv` (Empower Field 1609 m, Estadio Azteca 2240 m, Phoenix venues ≈ 330–360 m, others from known values).
 - Feature `away_altitude_gain_km` = max(0, venue elevation − away team's home elevation) / 1000 (the visiting team climbing; Denver home games ≈ 1.6).
 - Toggle `SituationalParams.altitude` (default False → 0.0).
+
+## Outcome (2026-10-13)
+
+Walk-forward 2012–2023 log-loss (lower is better), stage-0 settings; a feature had to win by more than 0.0003 to be switched on.
+
+| Candidate | Log-loss | Decision |
+|---|---|---|
+| Ratings without special teams (previous) | 0.62843 | — |
+| **+ special-teams rating** | **0.62730** | **Kept** (−0.0011) |
+| Injuries: `count` (4 columns) | 0.62728 | Kept (simplest within tolerance) |
+| Injuries: `count_diff` | 0.62702 | Tie (−0.00026) |
+| `count_diff` + Questionable/practice weighting | 0.62690 | Tie (−0.00038 vs count, but the review's tie rule and midweek fix were applied on the final run; final run kept `count`) |
+| `values_contract` (+ Questionable) | 0.62711 (0.62695) | Not kept |
+| Altitude climb | 0.62704 vs 0.62690 | Worse — not kept |
+
+- Final locked model: **0.6264** (was 0.6277); Elo 0.6327, Vegas 0.6130. Holdout 2024–25 (seen before, reference only): 0.6144 (was 0.6152).
+- Questionable starters' real miss rates 2013–2023: did not practice 57%, limited 25%, full 10%. Informative, but it doesn't improve predictions beyond Out/Doubtful counts — the market and the existing ratings already absorb it.
+- Contract quality first saturated (40% of starters at the clip) because minimum deals dominate; the percentile rescale fixed that but still didn't beat the plain count.
+- All four features stay in the code behind toggles and are re-tested on every `backtest --tune-features`.

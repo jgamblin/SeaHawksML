@@ -17,14 +17,15 @@
     "prior_games": 6.0,
     "prior_games_new_coach": 2.0,
     "opponent_adjust": false,
-    "extra_stats": true
+    "extra_stats": true,
+    "special_teams": true
   },
   "qb": {
     "prior_dropbacks": 150.0,
     "window_seasons": 3
   },
   "availability": {
-    "mode": "count_diff",
+    "mode": "count",
     "prior_opps": 60.0,
     "quality_scale": 4.0,
     "lineman_quality": {
@@ -33,6 +34,10 @@
       "later": 1.0,
       "udfa": 0.9
     },
-    "durability_weight": 0.5
+    "durability_weight": 0.5,
+    "questionable": false
+  },
+  "situational": {
+    "altitude": false
   }
 }
