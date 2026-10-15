@@ -63,11 +63,13 @@ def load_raw(stadiums: dict[str, Stadium], now: datetime, games: pl.DataFrame | 
 
     Pass an already-prepared `games` table to avoid downloading the schedule again.
     """
+    from seahawks_ml.features.starters import apply_expected_starters
     from seahawks_ml.ingest import nflverse, weather
 
     if games is None:
         games = prepare_games(nflverse.load_schedules(), stadiums)
     current = current_season(games, now)
+    games = apply_expected_starters(games, nflverse.load_depth_chart_qbs(current), now)
     seasons = list(range(FIRST_RATING_SEASON, current + 1))
     # Refetch last season's cache once after its final game (+7d) so late playoff
     # data and stat corrections are picked up.

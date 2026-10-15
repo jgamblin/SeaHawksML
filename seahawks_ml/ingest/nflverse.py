@@ -375,3 +375,28 @@ def load_season_tables(
         k: pl.concat([p.cast(schemas[k]) for p in v]) if v else pl.DataFrame(schema=schemas[k])
         for k, v in parts.items()
     }
+
+
+def load_depth_chart_qbs(season: int) -> pl.DataFrame:
+    """Daily depth-chart QB1 snapshots (team, dt, qb_id). nflverse's dated depth-chart format
+    exists from 2025; earlier seasons (or a failed fetch) return an empty table."""
+    from seahawks_ml.features.starters import DEPTH_QB_SCHEMA
+
+    try:
+        dc = nfl.load_depth_charts(season)
+    except Exception as exc:  # noqa: BLE001 - nflreadpy raises several error types
+        print(f"warning: no depth chart for {season} ({exc})")
+        return pl.DataFrame(schema=DEPTH_QB_SCHEMA)
+    if "dt" not in dc.columns:
+        return pl.DataFrame(schema=DEPTH_QB_SCHEMA)
+    return (
+        dc.filter((pl.col("pos_abb") == "QB") & (pl.col("pos_rank") == 1) & pl.col("gsis_id").is_not_null())
+        .select(
+            normalize_team("team").alias("team"),
+            pl.col("dt").str.to_datetime(time_zone="UTC").alias("dt"),
+            pl.col("gsis_id").alias("qb_id"),
+        )
+        .unique(["team", "dt"])
+        .cast(DEPTH_QB_SCHEMA)
+    )
+
