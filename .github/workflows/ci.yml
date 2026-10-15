@@ -13,6 +13,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --frozen
       - run: uv run pytest
