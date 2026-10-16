@@ -29,3 +29,4 @@
 {"away_score": 30, "game_id": "2026_05_BAL_ATL", "home_score": 23, "margin_home": -7, "recorded_at": "2026-10-12T07:27:27.563301+00:00", "type": "league_result"}
 {"away_score": 37, "game_id": "2026_05_BUF_LA", "home_score": 34, "margin_home": -3, "recorded_at": "2026-10-13T11:12:20.408781+00:00", "type": "league_result"}
 {"away_team": "SEA", "game_id": "2026_06_SEA_DEN", "home_team": "DEN", "kickoff_utc": "2026-10-16T00:15:00+00:00", "margin_home": -1.03, "model_version": "20261013-5e25267d", "p_elo_home": 0.4702, "p_home": 0.4689, "p_vegas_home": 0.4244, "predicted_at": "2026-10-15T04:25:13.130187+00:00", "season": 2026, "type": "league_prediction", "week": 6}
+{"away_score": 14, "game_id": "2026_06_SEA_DEN", "home_score": 17, "margin_home": 3, "recorded_at": "2026-10-16T04:20:35.953056+00:00", "type": "league_result"}
