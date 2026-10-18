@@ -50,3 +50,6 @@
 {"away_score": 19, "game_id": "2026_06_NYJ_NE", "home_score": 26, "margin_home": 7, "recorded_at": "2026-10-18T21:50:06.720023+00:00", "type": "league_result"}
 {"away_score": 26, "game_id": "2026_06_PIT_TB", "home_score": 19, "margin_home": -7, "recorded_at": "2026-10-18T21:50:06.720023+00:00", "type": "league_result"}
 {"away_score": 26, "game_id": "2026_06_TEN_IND", "home_score": 20, "margin_home": -6, "recorded_at": "2026-10-18T21:50:06.720023+00:00", "type": "league_result"}
+{"away_score": 18, "game_id": "2026_06_ARI_LA", "home_score": 16, "margin_home": -2, "recorded_at": "2026-10-18T23:44:25.072691+00:00", "type": "league_result"}
+{"away_score": 33, "game_id": "2026_06_BUF_LV", "home_score": 30, "margin_home": -3, "recorded_at": "2026-10-18T23:44:25.072691+00:00", "type": "league_result"}
+{"away_score": 6, "game_id": "2026_06_LAC_KC", "home_score": 22, "margin_home": 16, "recorded_at": "2026-10-18T23:44:25.072691+00:00", "type": "league_result"}
