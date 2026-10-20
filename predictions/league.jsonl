@@ -55,3 +55,4 @@
 {"away_score": 6, "game_id": "2026_06_LAC_KC", "home_score": 22, "margin_home": 16, "recorded_at": "2026-10-18T23:44:25.072691+00:00", "type": "league_result"}
 {"away_team": "WAS", "game_id": "2026_06_WAS_SF", "home_team": "SF", "kickoff_utc": "2026-10-20T00:15:00+00:00", "margin_home": 8.48, "model_version": "20261013-5e25267d", "p_elo_home": 0.8342, "p_home": 0.7395, "p_vegas_home": 0.7164, "predicted_at": "2026-10-19T01:50:34.005246+00:00", "season": 2026, "type": "league_prediction", "week": 6}
 {"away_score": 13, "game_id": "2026_06_DAL_GB", "home_score": 23, "margin_home": 10, "recorded_at": "2026-10-19T06:59:05.870046+00:00", "type": "league_result"}
+{"away_score": 17, "game_id": "2026_06_WAS_SF", "home_score": 23, "margin_home": 6, "recorded_at": "2026-10-20T07:43:25.219300+00:00", "type": "league_result"}
