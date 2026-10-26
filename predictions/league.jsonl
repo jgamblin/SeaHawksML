@@ -78,3 +78,7 @@
 {"away_score": 27, "game_id": "2026_07_NYG_HOU", "home_score": 21, "margin_home": -6, "recorded_at": "2026-10-25T22:28:14.648852+00:00", "type": "league_result"}
 {"away_score": 20, "game_id": "2026_07_SF_ATL", "home_score": 29, "margin_home": 9, "recorded_at": "2026-10-25T22:28:14.648852+00:00", "type": "league_result"}
 {"away_score": 43, "game_id": "2026_07_TB_CAR", "home_score": 13, "margin_home": -30, "recorded_at": "2026-10-25T22:28:14.648852+00:00", "type": "league_result"}
+{"away_score": 30, "game_id": "2026_07_DEN_ARI", "home_score": 16, "margin_home": -14, "recorded_at": "2026-10-26T00:39:25.718740+00:00", "type": "league_result"}
+{"away_score": 17, "game_id": "2026_07_GB_DET", "home_score": 20, "margin_home": 3, "recorded_at": "2026-10-26T00:39:25.718740+00:00", "type": "league_result"}
+{"away_score": 35, "game_id": "2026_07_LA_LV", "home_score": 21, "margin_home": -14, "recorded_at": "2026-10-26T00:39:25.718740+00:00", "type": "league_result"}
+{"away_team": "DAL", "game_id": "2026_07_DAL_PHI", "home_team": "PHI", "kickoff_utc": "2026-10-27T00:15:00+00:00", "margin_home": -2.33, "model_version": "20261020-5e25267d", "p_elo_home": 0.6417, "p_home": 0.43, "p_vegas_home": 0.3655, "predicted_at": "2026-10-26T00:39:25.718740+00:00", "season": 2026, "type": "league_prediction", "week": 7}
