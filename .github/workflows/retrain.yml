@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - run: uv sync --frozen
       - run: uv run python -m seahawks_ml.cli retrain
       - name: Commit model, metrics and data cache
