@@ -44,7 +44,7 @@ jobs:
       PUBLISH_ONLY: ${{ github.event_name == 'push' || inputs.publish_only == true }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - run: uv sync --frozen
       - id: predict
         if: env.PUBLISH_ONLY != 'true'
@@ -106,7 +106,7 @@ jobs:
       changed: ${{ steps.predict.outputs.changed }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - run: uv sync --frozen
       - id: wait
         run: uv run python -m seahawks_ml.cli wait-for-gameday --max-hours 5.5
