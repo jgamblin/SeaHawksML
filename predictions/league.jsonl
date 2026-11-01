@@ -98,3 +98,11 @@
 {"away_team": "KC", "game_id": "2026_08_KC_DEN", "home_team": "DEN", "kickoff_utc": "2026-11-01T21:25:00+00:00", "margin_home": -1.79, "model_version": "20261027-5e25267d", "p_elo_home": 0.6531, "p_home": 0.4461, "p_vegas_home": 0.4544, "predicted_at": "2026-10-31T22:25:12.816294+00:00", "season": 2026, "type": "league_prediction", "week": 8}
 {"away_team": "NE", "game_id": "2026_08_NE_MIA", "home_team": "MIA", "kickoff_utc": "2026-11-01T21:25:00+00:00", "margin_home": -9.93, "model_version": "20261027-5e25267d", "p_elo_home": 0.2847, "p_home": 0.2261, "p_vegas_home": 0.2965, "predicted_at": "2026-10-31T22:25:12.816294+00:00", "season": 2026, "type": "league_prediction", "week": 8}
 {"away_team": "PHI", "game_id": "2026_08_PHI_WAS", "home_team": "WAS", "kickoff_utc": "2026-11-02T01:20:00+00:00", "margin_home": 5.61, "model_version": "20261027-5e25267d", "p_elo_home": 0.5236, "p_home": 0.6646, "p_vegas_home": 0.6766, "predicted_at": "2026-11-01T01:24:30.428229+00:00", "season": 2026, "type": "league_prediction", "week": 8}
+{"away_score": 33, "game_id": "2026_08_ARI_DAL", "home_score": 30, "margin_home": -3, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 0, "game_id": "2026_08_ATL_TB", "home_score": 16, "margin_home": 16, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 10, "game_id": "2026_08_BAL_BUF", "home_score": 36, "margin_home": 26, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 6, "game_id": "2026_08_CLE_PIT", "home_score": 27, "margin_home": 21, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 7, "game_id": "2026_08_IND_JAX", "home_score": 42, "margin_home": 35, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 38, "game_id": "2026_08_LV_NYJ", "home_score": 33, "margin_home": -5, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 15, "game_id": "2026_08_MIN_DET", "home_score": 19, "margin_home": 4, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
+{"away_score": 36, "game_id": "2026_08_TEN_CIN", "home_score": 43, "margin_home": 7, "recorded_at": "2026-11-01T23:00:10.009423+00:00", "type": "league_result"}
