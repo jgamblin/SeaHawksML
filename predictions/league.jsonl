@@ -110,3 +110,4 @@
 {"away_score": 9, "game_id": "2026_08_LAC_LA", "home_score": 24, "margin_home": 15, "recorded_at": "2026-11-02T02:22:11.772033+00:00", "type": "league_result"}
 {"away_score": 24, "game_id": "2026_08_NE_MIA", "home_score": 19, "margin_home": -5, "recorded_at": "2026-11-02T02:22:11.772033+00:00", "type": "league_result"}
 {"away_team": "CHI", "game_id": "2026_08_CHI_SEA", "home_team": "SEA", "kickoff_utc": "2026-11-03T01:15:00+00:00", "margin_home": 4.18, "model_version": "20261027-5e25267d", "p_elo_home": 0.69, "p_home": 0.6243, "p_vegas_home": 0.5906, "predicted_at": "2026-11-02T02:22:11.772033+00:00", "season": 2026, "type": "league_prediction", "week": 8}
+{"away_score": 10, "game_id": "2026_08_PHI_WAS", "home_score": 27, "margin_home": 17, "recorded_at": "2026-11-02T09:41:49.922285+00:00", "type": "league_result"}
