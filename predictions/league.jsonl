@@ -128,3 +128,10 @@
 {"away_team": "GB", "game_id": "2026_09_GB_NE", "home_team": "NE", "kickoff_utc": "2026-11-08T21:25:00+00:00", "margin_home": 5.74, "model_version": "20261103-5e25267d", "p_elo_home": 0.6607, "p_home": 0.6681, "p_vegas_home": 0.6054, "predicted_at": "2026-11-07T23:53:18.851899+00:00", "season": 2026, "type": "league_prediction", "week": 9}
 {"away_team": "TB", "game_id": "2026_09_TB_CHI", "home_team": "CHI", "kickoff_utc": "2026-11-09T01:20:00+00:00", "margin_home": 5.5, "model_version": "20261103-5e25267d", "p_elo_home": 0.7265, "p_home": 0.6615, "p_vegas_home": 0.6766, "predicted_at": "2026-11-08T05:50:23.959175+00:00", "season": 2026, "type": "league_prediction", "week": 9}
 {"away_score": 34, "game_id": "2026_09_CIN_ATL", "home_score": 17, "margin_home": -17, "recorded_at": "2026-11-08T17:58:15.910865+00:00", "type": "league_result"}
+{"away_score": 22, "game_id": "2026_09_CLE_NO", "home_score": 23, "margin_home": 1, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 27, "game_id": "2026_09_DAL_IND", "home_score": 23, "margin_home": -4, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 26, "game_id": "2026_09_DEN_CAR", "home_score": 21, "margin_home": -5, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 19, "game_id": "2026_09_DET_MIA", "home_score": 9, "margin_home": -10, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 20, "game_id": "2026_09_LA_WAS", "home_score": 13, "margin_home": -7, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 19, "game_id": "2026_09_NYG_PHI", "home_score": 11, "margin_home": -8, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
+{"away_score": 12, "game_id": "2026_09_NYJ_KC", "home_score": 35, "margin_home": 23, "recorded_at": "2026-11-08T21:57:09.337457+00:00", "type": "league_result"}
