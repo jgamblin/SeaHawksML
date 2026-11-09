@@ -140,3 +140,4 @@
 {"away_score": 44, "game_id": "2026_09_HOU_LAC", "home_score": 22, "margin_home": -22, "recorded_at": "2026-11-09T01:38:40.028954+00:00", "type": "league_result"}
 {"away_score": 17, "game_id": "2026_09_LV_SF", "home_score": 38, "margin_home": 21, "recorded_at": "2026-11-09T01:38:40.028954+00:00", "type": "league_result"}
 {"away_team": "BUF", "game_id": "2026_09_BUF_MIN", "home_team": "MIN", "kickoff_utc": "2026-11-10T01:15:00+00:00", "margin_home": -1.96, "model_version": "20261103-5e25267d", "p_elo_home": 0.4979, "p_home": 0.441, "p_vegas_home": 0.4094, "predicted_at": "2026-11-09T01:38:40.028954+00:00", "season": 2026, "type": "league_prediction", "week": 9}
+{"away_score": 24, "game_id": "2026_09_TB_CHI", "home_score": 27, "margin_home": 3, "recorded_at": "2026-11-09T08:42:42.086063+00:00", "type": "league_result"}
