@@ -143,3 +143,4 @@
 {"away_score": 24, "game_id": "2026_09_TB_CHI", "home_score": 27, "margin_home": 3, "recorded_at": "2026-11-09T08:42:42.086063+00:00", "type": "league_result"}
 {"away_score": 23, "game_id": "2026_09_BUF_MIN", "home_score": 6, "margin_home": -17, "recorded_at": "2026-11-10T09:59:33.931650+00:00", "type": "league_result"}
 {"away_team": "WAS", "game_id": "2026_10_WAS_NYG", "home_team": "NYG", "kickoff_utc": "2026-11-13T01:15:00+00:00", "margin_home": -1.51, "model_version": "20261110-5e25267d", "p_elo_home": 0.6476, "p_home": 0.4545, "p_vegas_home": 0.5757, "predicted_at": "2026-11-12T04:22:47.748938+00:00", "season": 2026, "type": "league_prediction", "week": 10}
+{"away_score": 24, "game_id": "2026_10_WAS_NYG", "home_score": 21, "margin_home": -3, "recorded_at": "2026-11-13T08:48:10.389484+00:00", "type": "league_result"}
