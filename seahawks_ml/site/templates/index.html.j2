@@ -345,6 +345,17 @@
         </div>
       </div>
     </div>
+    {% elif data.bye %}
+    {% set b = data.bye %}
+    <div class="hero-empty">
+      <p class="eyebrow">Week {{ b.week }}</p>
+      <h1 id="hero-title">Bye week</h1>
+      <p>The Seahawks are off this week. Next up: <strong>{{ "vs" if b.next_home else "at" }} {{ b.next_opponent }}</strong>,
+        <span class="kick-local" data-utc="{{ b.next_kickoff_utc }}">{{ b.next_kickoff_utc[:10] }}</span>.
+        The first prediction for that game arrives around
+        <span class="kick-local" data-utc="{{ b.first_prediction_utc }}">{{ b.first_prediction_utc[:10] }}</span>.
+        League-wide predictions keep running this week.</p>
+    </div>
     {% else %}
     <div class="hero-empty">
       <p class="eyebrow">Next game</p>
@@ -463,6 +474,10 @@
       <thead><tr><th>Kickoff</th><th>Matchup</th><th>Runs (win %)</th><th class="r">Final pick</th><th>Result</th><th>Call</th></tr></thead>
       <tbody>
       {% for game in data.season_log %}
+        {% if game.status == "bye" %}
+        <tr class="bye-row"><td colspan="6"><span class="muted">Week {{ game.bye_week }} &middot; Bye week</span></td></tr>
+        {% continue %}
+        {% endif %}
         {% set predicted = game.latest is not none %}
         {% set lp = game.latest.p_seahawks if predicted else none %}
         {% set res = game.result %}
@@ -600,6 +615,7 @@
 </div>
 
 <script>
+document.querySelectorAll('.kick-local').forEach(el => { const d = new Date(el.dataset.utc); el.textContent = d.toLocaleString('en-US', {timeZone: 'America/Los_Angeles', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'}); });
 const DATA = {{ data_json|safe }};
 (function () {
   const TZ = "America/Los_Angeles";

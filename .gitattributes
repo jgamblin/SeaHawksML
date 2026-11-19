@@ -1,0 +1,2 @@
+# Append-only prediction logs: keep both sides when two runs append concurrently.
+predictions/*.jsonl merge=union

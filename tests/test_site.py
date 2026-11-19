@@ -329,3 +329,41 @@ def test_season_outlook_series_uses_sim_day():
     log = [_sim_snapshot(datetime(2026, 10, 6, 3, 0, tzinfo=UTC))]  # before 10:00 UTC: still Oct 5's sim day
     assert build_site_data([], datetime(2026, 10, 6, 12, tzinfo=UTC), sim_log=log)["season_sim"]["series"][0][
         "date"] == "2026-10-05"
+
+
+def _sched(game_id, kickoff, opp, home=True, us=None, them=None):
+    return {"game_id": game_id, "kickoff_utc": kickoff, "opponent": opp, "seahawks_home": home,
+            "seahawks_score": us, "opponent_score": them}
+
+
+BYE_SCHEDULE = [
+    _sched("2026_09_ARI_SEA", "2026-11-08T21:25:00+00:00", "ARI", True, 17, 3),
+    _sched("2026_10_SEA_LV", "2026-11-15T21:05:00+00:00", "LV", False, 21, 13),
+    _sched("2026_12_SEA_SF", "2026-11-29T21:25:00+00:00", "SF", False),
+]
+
+
+def test_bye_week_detected_between_games():
+    data = build_site_data([], datetime(2026, 11, 19, 1, tzinfo=UTC), schedule=BYE_SCHEDULE)
+    bye = data["bye"]
+    assert bye["week"] == 11 and bye["next_opponent"] == "SF" and bye["next_home"] is False
+    assert bye["next_kickoff_utc"] == "2026-11-29T21:25:00+00:00"
+    assert bye["first_prediction_utc"].startswith("2026-11-25T09:25")  # midweek window opens 4.5 days out
+    weeks = [row.get("bye_week") for row in data["season_log"]]
+    assert 11 in weeks  # a bye row sits between weeks 10 and 12
+    ids = [row["game_id"] for row in data["season_log"]]
+    assert ids.index("bye-11") == ids.index("2026_10_SEA_LV") + 1
+
+
+def test_no_bye_outside_gap_or_once_next_game_is_predicted():
+    assert build_site_data([], datetime(2026, 11, 12, tzinfo=UTC), schedule=BYE_SCHEDULE)["bye"] is None
+    pred = _pred("2026_12_SEA_SF", "midweek", "2026-11-25T10:00:00+00:00", "2026-11-29T21:25:00+00:00", 0.4)
+    data = build_site_data([pred], datetime(2026, 11, 25, 12, tzinfo=UTC), schedule=BYE_SCHEDULE)
+    assert data["bye"] is None and data["next_game"]["game_id"] == "2026_12_SEA_SF"
+
+
+def test_build_site_renders_bye_week(tmp_path):
+    out = build_site(datetime(2026, 11, 19, 1, tzinfo=UTC), history_path=tmp_path / "none.jsonl",
+                     out_dir=tmp_path / "s", schedule=BYE_SCHEDULE)
+    html = out.read_text()
+    assert "Bye week" in html and "Week 11" in html and "at SF" in html

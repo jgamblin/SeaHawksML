@@ -66,6 +66,42 @@ def _unpredicted_games(schedule: list[dict], predicted: set[str], now: datetime)
     return out
 
 
+def _week(game_id: str) -> int | None:
+    """Week from an nflverse id (SEASON_WEEK_AWAY_HOME); None for ids without one."""
+    parts = game_id.split("_")
+    return int(parts[1]) if len(parts) == 4 and parts[1].isdigit() else None
+
+
+def _regular_season(schedule: list[dict]) -> list[dict]:
+    return sorted((s for s in schedule if (_week(s["game_id"]) or 99) <= 18), key=lambda s: s["kickoff_utc"])
+
+
+def bye_week(schedule: list[dict], predicted_upcoming: bool, now: datetime) -> dict | None:
+    """The Seahawks' bye, while it's the current gap: after the last game before a skipped
+    regular-season week and until the next game has its first prediction."""
+    from seahawks_ml.pipeline.gate import RUN_WINDOWS
+
+    games = _regular_season(schedule)
+    for prev, nxt in zip(games, games[1:]):
+        gap = _week(nxt["game_id"]) - _week(prev["game_id"])
+        if gap > 1 and _ts(prev["kickoff_utc"]) < now < _ts(nxt["kickoff_utc"]) and not predicted_upcoming:
+            return {"week": _week(prev["game_id"]) + 1, "next_opponent": nxt["opponent"],
+                    "next_home": nxt["seahawks_home"], "next_kickoff_utc": nxt["kickoff_utc"],
+                    "first_prediction_utc": (_ts(nxt["kickoff_utc"]) - RUN_WINDOWS["midweek"][0]).isoformat()}
+    return None
+
+
+def _bye_rows(schedule: list[dict]) -> list[dict]:
+    """Season-log rows for skipped regular-season weeks, placed between the games around them."""
+    games = _regular_season(schedule)
+    rows = []
+    for prev, nxt in zip(games, games[1:]):
+        for wk in range(_week(prev["game_id"]) + 1, _week(nxt["game_id"])):
+            rows.append({"game_id": f"bye-{wk}", "bye_week": wk, "kickoff_utc": prev["kickoff_utc"] + "~bye",
+                         "status": "bye", "latest": None, "result": None, "trajectory": [], "changes": []})
+    return rows
+
+
 def build_site_data(history: list[dict], now: datetime, league_log: list[dict] | None = None,
                     sim_log: list[dict] | None = None, schedule: list[dict] | None = None) -> dict:
     predictions = [r for r in history if r["type"] == "prediction"]
@@ -102,8 +138,9 @@ def build_site_data(history: list[dict], now: datetime, league_log: list[dict] |
     return {
         "generated_at": now.isoformat(),
         "next_game": next_game,
-        "season_log": sorted([*games.values(), *_unpredicted_games(schedule or [], set(games), now)],
-                             key=lambda g: g["kickoff_utc"]),
+        "season_log": sorted([*games.values(), *_unpredicted_games(schedule or [], set(games), now),
+                              *_bye_rows(schedule or [])], key=lambda g: g["kickoff_utc"]),
+        "bye": bye_week(schedule or [], next_game is not None, now),
         "record": record,
         "metrics": _read_json(METRICS_PATH),
         "backtest": backtest,
@@ -123,7 +160,8 @@ def build_site(now: datetime | None = None, history_path: Path = PREDICTIONS_PAT
                            schedule)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "data.json").write_text(json.dumps(data, indent=2, default=str))
-    env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
+    env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]),
+                      extensions=["jinja2.ext.loopcontrols"])
     # Escape "<" so no string in the data can close the inline <script> block.
     data_json = json.dumps(data, default=str).replace("<", "\\u003c")
     html = env.get_template("index.html.j2").render(data=data, data_json=data_json)
