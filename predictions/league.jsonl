@@ -183,3 +183,10 @@
 {"away_team": "LV", "game_id": "2026_11_LV_DEN", "home_team": "DEN", "kickoff_utc": "2026-11-22T21:25:00+00:00", "margin_home": 8.79, "model_version": "20261117-5e25267d", "p_elo_home": 0.8464, "p_home": 0.7472, "p_vegas_home": 0.7888, "predicted_at": "2026-11-22T01:09:54.728039+00:00", "season": 2026, "type": "league_prediction", "week": 11}
 {"away_team": "PIT", "game_id": "2026_11_PIT_PHI", "home_team": "PHI", "kickoff_utc": "2026-11-22T21:25:00+00:00", "margin_home": -4.99, "model_version": "20261117-5e25267d", "p_elo_home": 0.352, "p_home": 0.3528, "p_vegas_home": 0.3946, "predicted_at": "2026-11-22T01:09:54.728039+00:00", "season": 2026, "type": "league_prediction", "week": 11}
 {"away_team": "MIN", "game_id": "2026_11_MIN_SF", "home_team": "SF", "kickoff_utc": "2026-11-23T01:20:00+00:00", "margin_home": 7.29, "model_version": "20261117-5e25267d", "p_elo_home": 0.5321, "p_home": 0.7096, "p_vegas_home": 0.5907, "predicted_at": "2026-11-22T08:08:09.353396+00:00", "season": 2026, "type": "league_prediction", "week": 11}
+{"away_score": 7, "game_id": "2026_11_ARI_KC", "home_score": 34, "margin_home": 27, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 33, "game_id": "2026_11_BAL_CAR", "home_score": 35, "margin_home": 2, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 9, "game_id": "2026_11_MIA_BUF", "home_score": 26, "margin_home": 17, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 13, "game_id": "2026_11_NO_CHI", "home_score": 21, "margin_home": 8, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 16, "game_id": "2026_11_PIT_PHI", "home_score": 19, "margin_home": 3, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 21, "game_id": "2026_11_TB_DET", "home_score": 31, "margin_home": 10, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
+{"away_score": 30, "game_id": "2026_11_TEN_DAL", "home_score": 51, "margin_home": 21, "recorded_at": "2026-11-22T21:58:24.645554+00:00", "type": "league_result"}
