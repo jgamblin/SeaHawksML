@@ -194,3 +194,4 @@
 {"away_score": 24, "game_id": "2026_11_LV_DEN", "home_score": 38, "margin_home": 14, "recorded_at": "2026-11-23T02:31:54.946238+00:00", "type": "league_result"}
 {"away_score": 27, "game_id": "2026_11_NYJ_LAC", "home_score": 24, "margin_home": -3, "recorded_at": "2026-11-23T02:31:54.946238+00:00", "type": "league_result"}
 {"away_team": "CIN", "game_id": "2026_11_CIN_WAS", "home_team": "WAS", "kickoff_utc": "2026-11-24T01:15:00+00:00", "margin_home": -1.45, "model_version": "20261117-5e25267d", "p_elo_home": 0.3345, "p_home": 0.4563, "p_vegas_home": 0.3233, "predicted_at": "2026-11-23T02:31:54.946238+00:00", "season": 2026, "type": "league_prediction", "week": 11}
+{"away_score": 10, "game_id": "2026_11_MIN_SF", "home_score": 35, "margin_home": 25, "recorded_at": "2026-11-23T11:09:11.614541+00:00", "type": "league_result"}
