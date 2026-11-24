@@ -1,6 +1,6 @@
 {
-  "model_version": "20261117-5e25267d",
-  "trained_at": "2026-11-17T22:01:35.879967+00:00",
+  "model_version": "20261124-5e25267d",
+  "trained_at": "2026-11-24T23:23:12.292978+00:00",
   "train_seasons": [
     2009,
     2010,
@@ -21,7 +21,7 @@
     2025,
     2026
   ],
-  "n_games": 4780,
+  "n_games": 4793,
   "config": {
     "model": {
       "kind": "ridge",
