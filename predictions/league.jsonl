@@ -204,3 +204,4 @@
 {"away_score": 39, "game_id": "2026_12_CHI_DET", "home_score": 35, "margin_home": -4, "recorded_at": "2026-11-26T21:58:50.263341+00:00", "type": "league_result"}
 {"away_team": "DEN", "game_id": "2026_12_DEN_PIT", "home_team": "PIT", "kickoff_utc": "2026-11-27T20:00:00+00:00", "margin_home": -2.75, "model_version": "20261124-5e25267d", "p_elo_home": 0.395, "p_home": 0.4173, "p_vegas_home": 0.3654, "predicted_at": "2026-11-26T21:58:50.263341+00:00", "season": 2026, "type": "league_prediction", "week": 12}
 {"away_score": 39, "game_id": "2026_12_PHI_DAL", "home_score": 38, "margin_home": -1, "recorded_at": "2026-11-27T04:06:22.605349+00:00", "type": "league_result"}
+{"away_score": 10, "game_id": "2026_12_KC_BUF", "home_score": 13, "margin_home": 3, "recorded_at": "2026-11-27T13:46:20.926797+00:00", "type": "league_result"}
